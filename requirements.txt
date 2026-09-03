@@ -4,3 +4,4 @@ pillow
 pandas
 matplotlib
 streamlit-js-eval
+google-genai
