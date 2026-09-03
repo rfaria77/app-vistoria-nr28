@@ -13,7 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as ReportLabImage, Table, TableStyle
 
 # ---------------------------------------------------------
-# Banco de Dados Local (SQLite)
+# Banco de Dados Local (SQLite) com Migração Automática
 # ---------------------------------------------------------
 DB_FILE = "sst_database.db"
 
@@ -41,9 +41,20 @@ def init_db():
             pdf_bytes BLOB NOT NULL
         )
     """)
+    
+    # Migração segura para bases existentes sem quebrar dados
+    c.execute("PRAGMA table_info(relatorios)")
+    colunas_existentes = [col[1] for col in c.fetchall()]
+    
+    if "economia_min" not in colunas_existentes:
+        c.execute("ALTER TABLE relatorios ADD COLUMN economia_min REAL NOT NULL DEFAULT 0")
+    if "economia_max" not in colunas_existentes:
+        c.execute("ALTER TABLE relatorios ADD COLUMN economia_max REAL NOT NULL DEFAULT 0")
+
     c.execute("SELECT usuario FROM usuarios WHERE usuario = 'admin'")
     if not c.fetchone():
         c.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", ("admin", "1234", "Admin"))
+        
     conn.commit()
     conn.close()
 
@@ -442,7 +453,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
-    # 6. Plano de Ação com Descrição e Ação Separadas
+    # 6. Plano de Ação
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -473,7 +484,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
                 Paragraph("___/___/______", cell_td_center)
             ])
 
-        # Larguras calculadas: 30 + 95 + 148 + 110 + 70 + 70 = 523pt (largura útil A4)
         t_plano = Table(dados_plano, colWidths=[30, 95, 148, 110, 70, 70])
         t_plano.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A8A')),
@@ -629,7 +639,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
         with col2:
             faixa_func = st.selectbox("👥 Faixa de Funcionários:", list(TABELA_MULTAS_SEGURANCA.keys()), index=2)
 
-    # 2. Placar Financeiro em Tempo Real (Cálculo estrito)
+    # 2. Placar Financeiro em Tempo Real
     st.markdown("---")
     tot_multa_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
     tot_multa_max = sum(e['valor_max'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
@@ -646,7 +656,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
         st.markdown("---")
         st.subheader(f"➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
 
-        # Classificação da Situação (Verificação corrigida)
+        # Classificação da Situação (Correção do startswith)
         st.markdown("**1. Situação Identificada:**")
         status_selecionado = st.radio(
             "Esta evidência representa:",
@@ -655,11 +665,10 @@ elif aba_selecionada == "📋 Nova Vistoria":
             key=f"status_{st.session_state.contador_fluxo}"
         )
         
-        # Correção crucial: verifica se começa com o emoji de conformidade
         eh_conforme = status_selecionado.startswith("✅")
         status_str = "Conformidade" if eh_conforme else "Não Conformidade"
 
-        # Prioridade (Apenas para Não Conformidade)
+        # Prioridade (Apenas para Não Conformidades)
         prioridade_selecionada = "Média"
         if not eh_conforme:
             prioridade_selecionada = st.selectbox(
@@ -724,7 +733,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 f"⚠️ **Risco de Multa Aplicável (NR 28):** {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}"
             )
 
-        # 4. Campos Separados: Descrição do Cenário e Ação Corretiva
+        # 4. Campos Separados
         st.markdown("**4. Detalhamento e Plano de Ação:**")
         desc_cenario = st.text_area(
             "📝 Descrição Detalhada do Cenário Constatado:",
