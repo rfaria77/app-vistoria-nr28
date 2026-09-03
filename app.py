@@ -1,11 +1,18 @@
 import io
 import os
+import json
+import uuid
 import sqlite3
 import datetime
+import urllib.parse
 import pandas as pd
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
+
+from streamlit_js_eval import get_geolocation
+from google import genai
+from google.genai import types
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -13,7 +20,43 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as ReportLabImage, Table, TableStyle
 
 # ---------------------------------------------------------
-# Banco de Dados Local (SQLite) com Migração Automática
+# Configuração da Página e CSS de Quebra de Linha
+# ---------------------------------------------------------
+st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layout="centered")
+
+st.markdown("""
+<style>
+    div[data-baseweb="select"] div {
+        white-space: normal !important;
+        word-break: break-word !important;
+        height: auto !important;
+        line-height: 1.35 !important;
+    }
+    div[data-baseweb="popover"] ul,
+    div[data-baseweb="popover"] li,
+    div[data-baseweb="popover"] div {
+        white-space: normal !important;
+        word-break: break-word !important;
+        height: auto !important;
+        min-height: 44px !important;
+        padding-top: 6px !important;
+        padding-bottom: 6px !important;
+        line-height: 1.4 !important;
+    }
+    .norma-card {
+        background-color: #f8fafc;
+        border-left: 5px solid #2563eb;
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-top: 8px;
+        margin-bottom: 12px;
+        word-wrap: break-word;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# Banco de Dados Local (SQLite)
 # ---------------------------------------------------------
 DB_FILE = "sst_database.db"
 
@@ -25,6 +68,24 @@ def init_db():
             usuario TEXT PRIMARY KEY,
             senha TEXT NOT NULL,
             perfil TEXT NOT NULL
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sessoes (
+            token TEXT PRIMARY KEY,
+            usuario TEXT NOT NULL,
+            perfil TEXT NOT NULL,
+            expira TEXT NOT NULL
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS rascunhos (
+            usuario TEXT PRIMARY KEY,
+            empresa TEXT,
+            inspetor TEXT,
+            faixa_func TEXT,
+            dados_json TEXT NOT NULL,
+            atualizado_em TEXT NOT NULL
         )
     """)
     c.execute("""
@@ -41,11 +102,8 @@ def init_db():
             pdf_bytes BLOB NOT NULL
         )
     """)
-    
-    # Migração segura para bases existentes sem quebrar dados
     c.execute("PRAGMA table_info(relatorios)")
     colunas_existentes = [col[1] for col in c.fetchall()]
-    
     if "economia_min" not in colunas_existentes:
         c.execute("ALTER TABLE relatorios ADD COLUMN economia_min REAL NOT NULL DEFAULT 0")
     if "economia_max" not in colunas_existentes:
@@ -54,11 +112,117 @@ def init_db():
     c.execute("SELECT usuario FROM usuarios WHERE usuario = 'admin'")
     if not c.fetchone():
         c.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", ("admin", "1234", "Admin"))
-        
     conn.commit()
     conn.close()
 
 init_db()
+
+# ---------------------------------------------------------
+# Gestão de Rascunho Automático
+# ---------------------------------------------------------
+def salvar_rascunho_db(usuario, empresa, inspetor, faixa_func, lista_evidencias):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    # Serializa evidências sem os objetos PIL para salvar rápido em JSON
+    evidencias_serializaveis = []
+    for ev in lista_evidencias:
+        item_copia = dict(ev)
+        # Converte lista de PIL Images para base64/bytes buffers simplificados
+        img_buffers = []
+        for img in item_copia.get("imagens", []):
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=70)
+            img_buffers.append(buf.getvalue().hex())
+        item_copia["imagens_hex"] = img_buffers
+        if "imagens" in item_copia:
+            del item_copia["imagens"]
+        evidencias_serializaveis.append(item_copia)
+
+    dados_json = json.dumps(evidencias_serializaveis)
+    agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    c.execute("""
+        INSERT INTO rascunhos (usuario, empresa, inspetor, faixa_func, dados_json, atualizado_em)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(usuario) DO UPDATE SET
+            empresa=excluded.empresa,
+            inspetor=excluded.inspetor,
+            faixa_func=excluded.faixa_func,
+            dados_json=excluded.dados_json,
+            atualizado_em=excluded.atualizado_em
+    """, (usuario, empresa, inspetor, faixa_func, dados_json, agora))
+    conn.commit()
+    conn.close()
+
+def carregar_rascunho_db(usuario):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT empresa, inspetor, faixa_func, dados_json, atualizado_em FROM rascunhos WHERE usuario = ?", (usuario,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+    empresa, inspetor, faixa_func, dados_json, atualizado_em = row
+    itens = json.loads(dados_json)
+    # Reconstrói imagens PIL a partir do hex
+    for it in itens:
+        imgs_pil = []
+        for hex_str in it.get("imagens_hex", []):
+            raw_bytes = bytes.fromhex(hex_str)
+            imgs_pil.append(Image.open(io.BytesIO(raw_bytes)))
+        it["imagens"] = imgs_pil
+        if "imagens_hex" in it:
+            del it["imagens_hex"]
+    return {
+        "empresa": empresa,
+        "inspetor": inspetor,
+        "faixa_func": faixa_func,
+        "evidencias": itens,
+        "atualizado_em": atualizado_em
+    }
+
+def limpar_rascunho_db(usuario):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM rascunhos WHERE usuario = ?", (usuario,))
+    conn.commit()
+    conn.close()
+
+# ---------------------------------------------------------
+# Gestão de Sessão (Token)
+# ---------------------------------------------------------
+def criar_sessao(usuario, perfil):
+    token = uuid.uuid4().hex
+    expira = (datetime.datetime.now() + datetime.timedelta(days=7)).isoformat()
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("INSERT INTO sessoes (token, usuario, perfil, expira) VALUES (?, ?, ?, ?)", (token, usuario, perfil, expira))
+    conn.commit()
+    conn.close()
+    return token
+
+def validar_token_sessao(token):
+    if not token:
+        return None
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT usuario, perfil, expira FROM sessoes WHERE token = ?", (token,))
+    row = c.fetchone()
+    conn.close()
+
+    if row:
+        usuario, perfil, expira_str = row
+        if datetime.datetime.now().isoformat() < expira_str:
+            return usuario, perfil
+        else:
+            revogar_token_sessao(token)
+    return None
+
+def revogar_token_sessao(token):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM sessoes WHERE token = ?", (token,))
+    conn.commit()
+    conn.close()
 
 def autenticar_usuario(usuario, senha):
     conn = sqlite3.connect(DB_FILE)
@@ -126,6 +290,15 @@ def verificar_login():
         st.session_state.usuario_logado = ""
         st.session_state.perfil_logado = ""
 
+    token_url = st.query_params.get("session")
+    if not st.session_state.autenticado and token_url:
+        sessao_valida = validar_token_sessao(token_url)
+        if sessao_valida:
+            st.session_state.autenticado = True
+            st.session_state.usuario_logado = sessao_valida[0]
+            st.session_state.perfil_logado = sessao_valida[1]
+            return True
+
     if st.session_state.autenticado:
         return True
 
@@ -137,6 +310,7 @@ def verificar_login():
         with st.form("form_login"):
             usuario_in = st.text_input("Usuário:").strip()
             senha_in = st.text_input("Senha:", type="password").strip()
+            lembrar = st.checkbox("Manter conectado neste dispositivo (7 dias)", value=True)
             entrar = st.form_submit_button("Entrar no Sistema", type="primary", use_container_width=True)
             if entrar:
                 user_data = autenticar_usuario(usuario_in, senha_in)
@@ -144,6 +318,9 @@ def verificar_login():
                     st.session_state.autenticado = True
                     st.session_state.usuario_logado = user_data[0]
                     st.session_state.perfil_logado = user_data[1]
+                    if lembrar:
+                        token_novo = criar_sessao(user_data[0], user_data[1])
+                        st.query_params["session"] = token_novo
                     st.success("Autenticado com sucesso!")
                     st.rerun()
                 else:
@@ -151,7 +328,100 @@ def verificar_login():
     return False
 
 # ---------------------------------------------------------
-# Tabelas Oficiais NR 28 (Segurança e Medicina)
+# Otimização de Imagens e Carimbo Técnico
+# ---------------------------------------------------------
+def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
+    img = imagem_original.convert("RGB")
+    img.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
+    
+    draw = ImageDraw.Draw(img)
+    largura, altura = img.size
+
+    altura_barra = max(34, int(altura * 0.065))
+    agora_str = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    draw.rectangle([0, altura - altura_barra, largura, altura], fill=(15, 23, 42))
+
+    texto_gps = f" | GPS: {lat:.5f}, {lon:.5f}" if (lat and lon) else " | GPS: Localização Não Obtida"
+    texto_completo = f"REGISTRO FORENSE SST: {agora_str}{texto_gps}"
+
+    try:
+        fonte = ImageFont.load_default()
+    except Exception:
+        fonte = None
+
+    pos_y = altura - int(altura_barra * 0.65)
+    draw.text((15, pos_y), texto_completo, fill=(255, 255, 255), font=fonte)
+    return img
+
+# ---------------------------------------------------------
+# Auditor Assistente com IA (Gemini com Timeout Resiliente)
+# ---------------------------------------------------------
+def analisar_imagem_com_ia(imagem_pil):
+    api_key = None
+    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["GEMINI_API_KEY"]
+    elif "GEMINI_API_KEY" in os.environ:
+        api_key = os.environ["GEMINI_API_KEY"]
+
+    if not api_key:
+        return None, "Chave GEMINI_API_KEY não configurada nos Secrets do Streamlit."
+
+    try:
+        # Configuração de cliente com timeout de segurança para conexões de campo
+        client = genai.Client(api_key=api_key)
+        prompt = """
+        Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
+        Analise a imagem desta inspeção e forneça estritamente um JSON estruturado:
+        {
+            "status": "Não Conformidade" ou "Conformidade",
+            "nr_sugerida": "Ex: NR 35",
+            "item_provavel": "Ex: 35.2.1",
+            "descricao_cenario": "Descrição clara e objetiva do que foi visualizado na cena",
+            "acao_corretiva": "Medida corretiva técnica imediata recomendada",
+            "prioridade": "Alta", "Média" ou "Baixa"
+        }
+        """
+
+        img_ia = imagem_pil.copy()
+        img_ia.thumbnail((800, 800), Image.Resampling.BILINEAR)
+        buf = io.BytesIO()
+        img_ia.save(buf, format="JPEG", quality=75)
+        
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=[
+                types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                prompt
+            ],
+            config={
+                "response_mime_type": "application/json"
+            }
+        )
+        return json.loads(response.text), None
+    except TimeoutError:
+        return None, "Tempo limite esgotado. A conexão de internet móvel na obra oscilou."
+    except Exception as e:
+        return None, f"Instabilidade na rede de IA: {str(e)}"
+
+# ---------------------------------------------------------
+# Link Direto para WhatsApp
+# ---------------------------------------------------------
+def gerar_link_whatsapp(telefone, empresa, tot_multa, tot_econ, qtd_nc):
+    msg = (
+        f"📋 *RELATÓRIO PRELIMINAR DE VISTORIA SST (NR 28)*\n\n"
+        f"🏢 *Empresa:* {empresa}\n"
+        f"📅 *Data:* {datetime.date.today().strftime('%d/%m/%Y')}\n"
+        f"⚠️ *Não Conformidades:* {qtd_nc} apontamento(s)\n"
+        f"💰 *Passivo em Risco:* {formata_brl(tot_multa)}\n"
+        f"🛡️ *Economia Gerada (Risco Evitado):* {formata_brl(tot_econ)}\n\n"
+        f"_O laudo técnico com o Plano de Ação detalhado já está disponível._"
+    )
+    telefone_limpo = "".join([c for c in telefone if c.isdigit()])
+    return f"https://api.whatsapp.com/send?phone={telefone_limpo}&text={urllib.parse.quote(msg)}"
+
+# ---------------------------------------------------------
+# Tabelas Oficiais NR 28
 # ---------------------------------------------------------
 TABELA_MULTAS_SEGURANCA = {
     "1 a 10":   {"I1": (630, 1120),   "I2": (1121, 1680),  "I3": (1681, 2240),  "I4": (2241, 2792)},
@@ -175,6 +445,7 @@ TABELA_MULTAS_MEDICINA = {
     "Mais de 1000":{"I1": (2241, 2520),"I2": (3081, 3360), "I3": (3921, 4480), "I4": (5041, 5493)}
 }
 
+@st.cache_data
 def carregar_dados_nr():
     caminho = "itens_nr28.csv"
     if os.path.exists(caminho):
@@ -261,7 +532,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     cell_td_center = ParagraphStyle('CellTDCenter', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, textColor=colors.HexColor('#0F172A'), alignment=1, leading=10)
     cell_td_total = ParagraphStyle('CellTDTotal', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8, textColor=colors.HexColor('#0F172A'), alignment=1, leading=10)
 
-    # 1. Cabeçalho com Logomarca
     texto_cabecalho = [
         Paragraph("Relatório Técnico de Vistoria, Riscos e Conformidades SST (NR 28)", titulo_style),
         Spacer(1, 4),
@@ -295,7 +565,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     qtd_nc = sum(1 for e in lista_evidencias if e['status'] == "Não Conformidade")
     qtd_conf = sum(1 for e in lista_evidencias if e['status'] == "Conformidade")
 
-    # 2. Resumo Executivo
     info_cabecalho = [
         [Paragraph("Empresa Atendida (Cliente):", cell_label), Paragraph(dados_gerais['empresa_cliente'], cell_value)],
         [Paragraph("Faixa de Funcionários:", cell_label), Paragraph(dados_gerais['faixa_func'], cell_value)],
@@ -314,7 +583,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_info)
     elementos.append(Spacer(1, 14))
 
-    # 3. Detalhamento dos Apontamentos com Campos Separados
     for idx, ev in enumerate(lista_evidencias, start=1):
         eh_conforme = (ev['status'] == "Conformidade")
         cor_status = "#059669" if eh_conforme else "#DC2626"
@@ -366,7 +634,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
             linha_atual = []
             for img in ev['imagens']:
                 img_buf = io.BytesIO()
-                img.save(img_buf, format='JPEG')
+                img.save(img_buf, format='JPEG', quality=85)
                 img_buf.seek(0)
                 rl_img = ReportLabImage(img_buf, width=250, height=170)
                 linha_atual.append(rl_img)
@@ -388,14 +656,12 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
 
         elementos.append(Spacer(1, 10))
 
-    # 4. Análise Gráfica
     elementos.append(Paragraph("<b>4. Análise Gráfica: Riscos de Multas vs Economia Gerada</b>", styles['Heading3']))
     elementos.append(Spacer(1, 6))
     grafico_buf = gerar_grafico_multas(lista_evidencias)
     elementos.append(ReportLabImage(grafico_buf, width=490, height=220))
     elementos.append(Spacer(1, 14))
 
-    # 5. Apuração Financeira Consolidada
     elementos.append(Paragraph("<b>5. Balanço Financeiro das Multas e Economia (NR 28)</b>", styles['Heading3']))
     elementos.append(Spacer(1, 6))
 
@@ -453,7 +719,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
-    # 6. Plano de Ação
+    # 6. Plano de Ação com Descrição Legal
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -461,7 +727,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     dados_plano = [
         [
             Paragraph("Item", cell_th),
-            Paragraph("Norma / Item", cell_th),
+            Paragraph("Norma & Descrição Legal", cell_th),
             Paragraph("Cenário Observado", cell_th),
             Paragraph("Ação Corretiva", cell_th),
             Paragraph("Prioridade", cell_th),
@@ -474,17 +740,18 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
         for idx, ev in enumerate(itens_nc, 1):
             cor_p = "#DC2626" if ev.get('prioridade') == "Alta" else ("#D97706" if ev.get('prioridade') == "Média" else "#059669")
             tag_pri = f"<font color='{cor_p}'><b>{ev.get('prioridade', 'Média')}</b></font>"
-            
+            texto_norma_completo = f"<b>{ev['nr']} — Item {ev['item_nr']}</b><br/><font color='#334155'><i>{ev['descricao']}</i></font>"
+
             dados_plano.append([
                 Paragraph(f"#{idx}", cell_td_center),
-                Paragraph(f"<b>{ev['nr']}</b><br/>{ev['item_nr']}", cell_td),
+                Paragraph(texto_norma_completo, cell_td),
                 Paragraph(ev['descricao_cenario'], cell_td),
                 Paragraph(ev['acao_corretiva'], cell_td),
                 Paragraph(tag_pri, cell_td_center),
                 Paragraph("___/___/______", cell_td_center)
             ])
 
-        t_plano = Table(dados_plano, colWidths=[30, 95, 148, 110, 70, 70])
+        t_plano = Table(dados_plano, colWidths=[28, 130, 135, 110, 60, 60])
         t_plano.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A8A')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
@@ -503,15 +770,25 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
 # ---------------------------------------------------------
 # Interface Streamlit
 # ---------------------------------------------------------
-st.set_page_config(page_title="Vistoria SST - NR 28", layout="centered")
-
 if not verificar_login():
     st.stop()
 
-# Navegação Lateral
+loc_atual = get_geolocation()
+lat_capturada = loc_atual['coords']['latitude'] if (loc_atual and 'coords' in loc_atual) else None
+lon_capturada = loc_atual['coords']['longitude'] if (loc_atual and 'coords' in loc_atual) else None
+
 with st.sidebar:
     st.markdown(f"👤 Usuário: **{st.session_state.usuario_logado}** (`{st.session_state.perfil_logado}`)")
+    if lat_capturada and lon_capturada:
+        st.caption(f"📍 GPS Ativo: `{lat_capturada:.4f}, {lon_capturada:.4f}`")
+    else:
+        st.caption("📍 GPS: Aguardando permissão...")
+
     if st.button("🚪 Sair (Logout)", use_container_width=True):
+        token_atual = st.query_params.get("session")
+        if token_atual:
+            revogar_token_sessao(token_atual)
+            st.query_params.clear()
         st.session_state.autenticado = False
         st.session_state.usuario_logado = ""
         st.session_state.perfil_logado = ""
@@ -615,7 +892,7 @@ if aba_selecionada == "⚙️ Painel de Administração":
             st.info("Nenhum relatório foi salvo até o momento.")
 
 # =========================================================
-# ABA 2: NOVA VISTORIA (Fluxo Operacional de Campo)
+# ABA 2: NOVA VISTORIA (Com Rascunho, Edição e Exclusão)
 # =========================================================
 elif aba_selecionada == "📋 Nova Vistoria":
     if "evidencias" not in st.session_state:
@@ -626,14 +903,34 @@ elif aba_selecionada == "📋 Nova Vistoria":
         st.session_state.contador_fluxo = 0
     if "fotos_atuais" not in st.session_state:
         st.session_state.fotos_atuais = []
+    if "ia_sugestao" not in st.session_state:
+        st.session_state.ia_sugestao = None
+    if "editando_indice" not in st.session_state:
+        st.session_state.editando_indice = None
+
+    # Verificação de Rascunho Pendente do Usuário
+    rascunho_existente = carregar_rascunho_db(st.session_state.usuario_logado)
+    if rascunho_existente and not st.session_state.evidencias:
+        st.info(f"💾 **Rascunho detectado!** Foi encontrada uma vistoria em andamento de `{rascunho_existente['empresa']}` salva em {rascunho_existente['atualizado_em']}.")
+        col_rec1, col_rec2 = st.columns(2)
+        with col_rec1:
+            if st.button("🔄 Retomar Esta Vistoria em Andamento", type="primary", use_container_width=True):
+                st.session_state.evidencias = rascunho_existente["evidencias"]
+                st.session_state.modo_adicionar = False
+                st.rerun()
+        with col_rec2:
+            if st.button("🗑️ Descartar Rascunho Antigo", use_container_width=True):
+                limpar_rascunho_db(st.session_state.usuario_logado)
+                st.rerun()
 
     st.title("📸 Vistoria SST & Gestão de Riscos NR 28")
 
-    # 1. Dados da Empresa e Auditoria
+    # 1. Dados Gerais da Empresa
     with st.container():
         col1, col2 = st.columns(2)
         with col1:
-            empresa_cliente = st.text_input("🏢 Empresa Atendida (Cliente):", value="Construtora Exemplo Ltda")
+            emp_padrao = rascunho_existente["empresa"] if (rascunho_existente and not st.session_state.evidencias) else "Construtora Exemplo Ltda"
+            empresa_cliente = st.text_input("🏢 Empresa Atendida (Cliente):", value=emp_padrao)
             inspetor_padrao = f"{st.session_state.usuario_logado.capitalize()} (SST)"
             inspetor = st.text_input("👷 Inspetor Responsável:", value=inspetor_padrao)
         with col2:
@@ -651,42 +948,28 @@ elif aba_selecionada == "📋 Nova Vistoria":
     c2.metric("⚠️ Multas em Risco (Máx)", formata_brl(tot_multa_max), delta=f"-{formata_brl(tot_multa_min)} (mín)", delta_color="inverse")
     c3.metric("✅ Economia Gerada (Máx)", formata_brl(tot_econ_max), delta=f"+{formata_brl(tot_econ_min)} (mín)")
 
-    # 3. Formulário de Apontamentos
-    if st.session_state.modo_adicionar:
+    # 3. Formulário de Apontamentos (Novo ou Edição)
+    if st.session_state.modo_adicionar or st.session_state.editando_indice is not None:
         st.markdown("---")
-        st.subheader(f"➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
-
-        # Classificação da Situação (Correção do startswith)
-        st.markdown("**1. Situação Identificada:**")
-        status_selecionado = st.radio(
-            "Esta evidência representa:",
-            ["⚠️ Não Conformidade (Irregularidade / Risco de Multa)", "✅ Conformidade (Boa Prática / Economia Gerada)"],
-            horizontal=True,
-            key=f"status_{st.session_state.contador_fluxo}"
-        )
+        idx_edicao = st.session_state.editando_indice
         
-        eh_conforme = status_selecionado.startswith("✅")
-        status_str = "Conformidade" if eh_conforme else "Não Conformidade"
+        if idx_edicao is not None:
+            st.subheader(f"✏️ Editando Apontamento #{idx_edicao + 1}")
+            item_edicao = st.session_state.evidencias[idx_edicao]
+            if not st.session_state.fotos_atuais and item_edicao.get("imagens"):
+                st.session_state.fotos_atuais = list(item_edicao["imagens"])
+        else:
+            st.subheader(f"➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
+            item_edicao = None
 
-        # Prioridade (Apenas para Não Conformidades)
-        prioridade_selecionada = "Média"
-        if not eh_conforme:
-            prioridade_selecionada = st.selectbox(
-                "🚨 Prioridade de Correção / Intervenção:",
-                ["Alta", "Média", "Baixa"],
-                index=1,
-                help="Define a urgência no cronograma de regularização do plano de ação.",
-                key=f"prio_{st.session_state.contador_fluxo}"
-            )
-
-        # Fotos (Câmera + Galeria)
-        st.markdown("**2. Registros Fotográficos:**")
+        st.markdown("**1. Registros Fotográficos (Carimbo Forense e Otimização):**")
         col_cam, col_up = st.columns(2)
         with col_cam:
             foto_cam = st.camera_input("Tirar foto com câmera", key=f"cam_{st.session_state.contador_fluxo}")
             if foto_cam and st.button("➕ Adicionar foto da câmera", use_container_width=True):
-                st.session_state.fotos_atuais.append(Image.open(foto_cam))
-                st.success("Foto da câmera adicionada!")
+                img_proc = otimizar_e_carimbar(Image.open(foto_cam), lat_capturada, lon_capturada)
+                st.session_state.fotos_atuais.append(img_proc)
+                st.success("Foto processada e carimbada!")
 
         with col_up:
             arquivos_up = st.file_uploader(
@@ -697,7 +980,8 @@ elif aba_selecionada == "📋 Nova Vistoria":
             )
             if arquivos_up and st.button("➕ Confirmar fotos da galeria", use_container_width=True):
                 for arq in arquivos_up:
-                    st.session_state.fotos_atuais.append(Image.open(arq))
+                    img_proc = otimizar_e_carimbar(Image.open(arq), lat_capturada, lon_capturada)
+                    st.session_state.fotos_atuais.append(img_proc)
                 st.success(f"{len(arquivos_up)} foto(s) adicionada(s)!")
 
         if st.session_state.fotos_atuais:
@@ -705,53 +989,143 @@ elif aba_selecionada == "📋 Nova Vistoria":
             cols_p = st.columns(min(len(st.session_state.fotos_atuais), 4))
             for idx_f, img in enumerate(st.session_state.fotos_atuais):
                 cols_p[idx_f % 4].image(img, use_container_width=True)
-            if st.button("❌ Limpar fotos deste apontamento"):
-                st.session_state.fotos_atuais = []
-                st.rerun()
 
-        # Seleção da Norma
+            col_ia, col_limpar_f = st.columns([1.5, 1])
+            with col_ia:
+                if st.button("✨ Analisar com IA (Gemini 3.6 Flash)", use_container_width=True):
+                    with st.spinner("Analisando riscos técnicos da imagem..."):
+                        resultado_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
+                        if resultado_ia:
+                            st.session_state.ia_sugestao = resultado_ia
+                            st.toast("✅ Sugestão de enquadramento aplicada!")
+                        else:
+                            st.warning(f"Atenção: {err_ia}")
+            with col_limpar_f:
+                if st.button("❌ Limpar fotos deste apontamento", use_container_width=True):
+                    st.session_state.fotos_atuais = []
+                    st.session_state.ia_sugestao = None
+                    st.rerun()
+
+        st.markdown("**2. Situação Identificada:**")
+        index_status = 0
+        if item_edicao:
+            index_status = 1 if item_edicao["status"] == "Conformidade" else 0
+        elif st.session_state.ia_sugestao and st.session_state.ia_sugestao.get("status") == "Conformidade":
+            index_status = 1
+
+        status_selecionado = st.radio(
+            "Esta evidência representa:",
+            ["⚠️ Não Conformidade (Irregularidade / Risco de Multa)", "✅ Conformidade (Boa Prática / Economia Gerada)"],
+            index=index_status,
+            horizontal=True,
+            key=f"status_{st.session_state.contador_fluxo}"
+        )
+        
+        eh_conforme = status_selecionado.startswith("✅")
+        status_str = "Conformidade" if eh_conforme else "Não Conformidade"
+
+        prioridade_selecionada = "Média"
+        if not eh_conforme:
+            idx_prio = 1
+            if item_edicao:
+                prio_val = item_edicao.get("prioridade", "Média")
+                idx_prio = 0 if prio_val == "Alta" else (2 if prio_val == "Baixa" else 1)
+            elif st.session_state.ia_sugestao:
+                sug_p = st.session_state.ia_sugestao.get("prioridade", "Média")
+                idx_prio = 0 if sug_p == "Alta" else (2 if sug_p == "Baixa" else 1)
+
+            prioridade_selecionada = st.selectbox(
+                "🚨 Prioridade de Correção / Intervenção:",
+                ["Alta", "Média", "Baixa"],
+                index=idx_prio,
+                key=f"prio_{st.session_state.contador_fluxo}"
+            )
+
         st.markdown("**3. Enquadramento Legal da Norma:**")
         lista_nrs_disponiveis = sorted(df_nr_base["nr"].unique())
-        nr_selecionada = st.selectbox("Selecione a NR:", lista_nrs_disponiveis, key=f"nr_sel_{st.session_state.contador_fluxo}")
+        
+        idx_nr_padrao = 0
+        if item_edicao and item_edicao["nr"] in lista_nrs_disponiveis:
+            idx_nr_padrao = lista_nrs_disponiveis.index(item_edicao["nr"])
+        elif st.session_state.ia_sugestao:
+            nr_sug = st.session_state.ia_sugestao.get("nr_sugerida", "")
+            if nr_sug in lista_nrs_disponiveis:
+                idx_nr_padrao = lista_nrs_disponiveis.index(nr_sug)
+
+        nr_selecionada = st.selectbox("Selecione a NR:", lista_nrs_disponiveis, index=idx_nr_padrao, key=f"nr_sel_{st.session_state.contador_fluxo}")
 
         df_filtrado = df_nr_base[df_nr_base["nr"] == nr_selecionada].reset_index(drop=True)
-        opcoes_itens = [f"{row['item']} - {row['descricao']}" for _, row in df_filtrado.iterrows()]
+        opcoes_itens = [f"Item {row['item']} — {row['descricao']}" for _, row in df_filtrado.iterrows()]
 
-        item_idx = st.selectbox("Selecione o item correspondente:", range(len(opcoes_itens)), format_func=lambda x: opcoes_itens[x], key=f"item_sel_{st.session_state.contador_fluxo}")
+        idx_item_padrao = 0
+        if item_edicao and item_edicao["nr"] == nr_selecionada:
+            for i_idx, r in df_filtrado.iterrows():
+                if r["item"] == item_edicao["item_nr"]:
+                    idx_item_padrao = i_idx
+                    break
+
+        item_idx = st.selectbox(
+            "Selecione o item correspondente da norma:",
+            range(len(opcoes_itens)),
+            index=idx_item_padrao,
+            format_func=lambda x: opcoes_itens[x],
+            key=f"item_sel_{st.session_state.contador_fluxo}"
+        )
         item_escolhido = df_filtrado.iloc[item_idx]
-
         multa_calc_min, multa_calc_max = calcular_multa(item_escolhido['infracao'], faixa_func, item_escolhido['tipo'])
 
         if eh_conforme:
-            st.success(
-                f"**Item Conforme:** {item_escolhido['nr']} | Item: `{item_escolhido['item']}` | Grau: {item_escolhido['infracao']}\n\n"
-                f"💰 **Economia Gerada estimada:** A empresa evitou um passivo fiscal entre **{formata_brl(multa_calc_min)} e {formata_brl(multa_calc_max)}**!"
-            )
+            st.markdown(f"""
+            <div class="norma-card" style="border-left-color: #10B981; background-color: #F0FDF4;">
+                <b style="color: #065F46; font-size: 1.05rem;">✅ Item Conforme: {item_escolhido['nr']} (Item {item_escolhido['item']})</b><br/>
+                <p style="margin: 6px 0; color: #1F2937; line-height: 1.4;"><b>Requisito:</b> {item_escolhido['descricao']}</p>
+                <span style="font-size: 0.9rem; color: #047857;">
+                    <b>Categoria:</b> {item_escolhido['categoria']} | <b>Grau:</b> {item_escolhido['infracao']}<br/>
+                    <b>Economia Estimada:</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.error(
-                f"**Não Conformidade:** {item_escolhido['nr']} | Item: `{item_escolhido['item']}` | Grau: {item_escolhido['infracao']} | Prioridade: {prioridade_selecionada}\n\n"
-                f"⚠️ **Risco de Multa Aplicável (NR 28):** {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}"
-            )
+            st.markdown(f"""
+            <div class="norma-card" style="border-left-color: #EF4444; background-color: #FEF2F2;">
+                <b style="color: #991B1B; font-size: 1.05rem;">⚠️ Não Conformidade: {item_escolhido['nr']} (Item {item_escolhido['item']})</b><br/>
+                <p style="margin: 6px 0; color: #1F2937; line-height: 1.4;"><b>Infração:</b> {item_escolhido['descricao']}</p>
+                <span style="font-size: 0.9rem; color: #B91C1C;">
+                    <b>Categoria:</b> {item_escolhido['categoria']} | <b>Grau:</b> {item_escolhido['infracao']} | <b>Prioridade:</b> {prioridade_selecionada}<br/>
+                    <b>Multa Prevista (NR 28):</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        # 4. Campos Separados
         st.markdown("**4. Detalhamento e Plano de Ação:**")
+        if item_edicao:
+            valor_padrao_cenario = item_edicao.get("descricao_cenario", "")
+            valor_padrao_acao = item_edicao.get("acao_corretiva", "")
+        elif st.session_state.ia_sugestao:
+            valor_padrao_cenario = st.session_state.ia_sugestao.get("descricao_cenario", "")
+            valor_padrao_acao = st.session_state.ia_sugestao.get("acao_corretiva", "")
+        else:
+            valor_padrao_cenario = ""
+            valor_padrao_acao = ""
+
         desc_cenario = st.text_area(
             "📝 Descrição Detalhada do Cenário Constatado:",
-            placeholder="Descreva exatamente o que foi visto em campo (local, máquinas, ferramentas, trabalhadores envolvidos)...",
+            value=valor_padrao_cenario,
+            placeholder="Descreva o que foi visto em campo...",
             key=f"cenario_{st.session_state.contador_fluxo}"
         )
 
-        label_acao = "🛡️ Conduta / Boas Práticas Mantidas:" if eh_conforme else "🛠️ Ação Corretiva Recomendada (O que fazer para regularizar):"
-        placeholder_acao = "Descreva como a empresa mantém o padrão conforme..." if eh_conforme else "Ex: Instalar linha de vida com cabo de aço de 8mm e ancoragem inspecionada..."
-        
+        label_acao = "🛡️ Conduta / Boas Práticas Mantidas:" if eh_conforme else "🛠️ Ação Corretiva Recomendada:"
         acao_corretiva = st.text_area(
             label_acao,
-            placeholder=placeholder_acao,
+            value=valor_padrao_acao,
+            placeholder="Medidas necessárias para regularização...",
             key=f"acao_{st.session_state.contador_fluxo}"
         )
 
-        if st.button("💾 Salvar Apontamento e Atualizar Totais", type="primary", use_container_width=True):
-            st.session_state.evidencias.append({
+        texto_botao = "💾 Atualizar Apontamento" if idx_edicao is not None else "💾 Salvar Apontamento no Laudo"
+        if st.button(texto_botao, type="primary", use_container_width=True):
+            novo_dado = {
                 "status": status_str,
                 "prioridade": prioridade_selecionada,
                 "nr": item_escolhido['nr'],
@@ -765,38 +1139,78 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 "descricao_cenario": desc_cenario if desc_cenario else ("Conformidade atendida com sucesso." if eh_conforme else "Não conformidade constatada em campo."),
                 "acao_corretiva": acao_corretiva if acao_corretiva else ("Manter o procedimento operacional padrão." if eh_conforme else "Regularizar conforme requisitos da norma."),
                 "imagens": list(st.session_state.fotos_atuais)
-            })
+            }
+            if idx_edicao is not None:
+                st.session_state.evidencias[idx_edicao] = novo_dado
+                st.session_state.editando_indice = None
+                st.toast("✅ Apontamento atualizado com sucesso!")
+            else:
+                st.session_state.evidencias.append(novo_dado)
+                st.toast("✅ Apontamento salvo no laudo!")
+
+            # Auto-save no SQLite para resiliência contra fechamentos
+            salvar_rascunho_db(st.session_state.usuario_logado, empresa_cliente, inspetor, faixa_func, st.session_state.evidencias)
+
             st.session_state.fotos_atuais = []
+            st.session_state.ia_sugestao = None
             st.session_state.modo_adicionar = False
             st.session_state.contador_fluxo += 1
             st.rerun()
 
     else:
-        st.success("✅ Apontamento salvo com sucesso!")
         st.write("### O que deseja fazer agora?")
         col_a, col_b = st.columns(2)
         with col_a:
             if st.button("➕ Adicionar Outro Apontamento", use_container_width=True):
                 st.session_state.modo_adicionar = True
+                st.session_state.editando_indice = None
+                st.session_state.fotos_atuais = []
                 st.rerun()
         with col_b:
-            if st.button("🏁 Finalizar e Ver Plano de Ação", type="primary", use_container_width=True):
+            if st.button("🏁 Finalizar Vistoria e Visualizar Laudo", type="primary", use_container_width=True):
                 st.session_state.modo_adicionar = False
+                st.session_state.editando_indice = None
 
-    # 4. Exibição da Tabela de Plano de Ação e Emissão do Laudo
+    # 4. Gerenciador de Apontamentos Inseridos (Editar e Excluir)
     if st.session_state.evidencias:
         st.markdown("---")
+        st.subheader(f"📑 Apontamentos Registrados ({len(st.session_state.evidencias)})")
         
+        for idx, ev in enumerate(st.session_state.evidencias):
+            eh_c = (ev["status"] == "Conformidade")
+            cor_tag = "🟢" if eh_c else "🔴"
+            rot_tipo = "Boa Prática" if eh_c else f"Não Conformidade ({ev.get('prioridade', 'Média')})"
+
+            with st.expander(f"{cor_tag} #{idx + 1}: {ev['nr']} (Item {ev['item_nr']}) — {rot_tipo}"):
+                st.write(f"**Norma / Descrição:** {ev['descricao']}")
+                st.write(f"**Cenário:** {ev['descricao_cenario']}")
+                st.write(f"**Ação:** {ev['acao_corretiva']}")
+                st.write(f"**Fotos anexadas:** {len(ev.get('imagens', []))}")
+                
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button(f"✏️ Editar Apontamento #{idx + 1}", key=f"btn_edit_{idx}", use_container_width=True):
+                        st.session_state.editando_indice = idx
+                        st.session_state.modo_adicionar = True
+                        st.session_state.fotos_atuais = list(ev.get("imagens", []))
+                        st.rerun()
+                with col_btn2:
+                    if st.button(f"🗑️ Excluir Apontamento #{idx + 1}", key=f"btn_del_{idx}", use_container_width=True):
+                        st.session_state.evidencias.pop(idx)
+                        salvar_rascunho_db(st.session_state.usuario_logado, empresa_cliente, inspetor, faixa_func, st.session_state.evidencias)
+                        st.toast(f"Apontamento #{idx + 1} removido.")
+                        st.rerun()
+
+        # 5. Plano de Ação e Compartilhamento
         ncs_atuais = [e for e in st.session_state.evidencias if e['status'] == "Não Conformidade"]
         if ncs_atuais:
+            st.markdown("---")
             st.subheader("📋 Plano de Ação para Regularização (Pré-visualização)")
-            st.caption("No relatório em PDF, as colunas estarão formatadas e com o campo 'Prazo Limite' pronto para anotação:")
-            
             df_plano_tela = pd.DataFrame([
                 {
                     "Item": f"#{i}",
-                    "Norma": e["nr"],
-                    "Item da Norma": e["item_nr"],
+                    "Norma / Item": f"{e['nr']} ({e['item_nr']})",
+                    "Infração / Requisito Legal (NR)": e["descricao"],
                     "Cenário Observado": e["descricao_cenario"],
                     "Ação Corretiva": e["acao_corretiva"],
                     "Prioridade": e.get("prioridade", "Média"),
@@ -806,7 +1220,20 @@ elif aba_selecionada == "📋 Nova Vistoria":
             ])
             st.dataframe(df_plano_tela, use_container_width=True)
 
-        st.subheader("📄 Emissão do Relatório Técnico")
+        st.subheader("📲 Compartilhar Resumo via WhatsApp")
+        col_w1, col_w2 = st.columns([1.5, 1])
+        with col_w1:
+            tel_wpp = st.text_input("WhatsApp do Cliente/Engenheiro (DDD + Número):", placeholder="Ex: 11999998888")
+        with col_w2:
+            st.write("")
+            st.write("")
+            if tel_wpp:
+                link_wpp = gerar_link_whatsapp(tel_wpp, empresa_cliente, tot_multa_max, tot_econ_max, len(ncs_atuais))
+                st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25D366;color:white;border:none;padding:10px 16px;border-radius:6px;font-weight:bold;width:100%;">💬 Enviar Resumo no WhatsApp</button></a>', unsafe_allow_html=True)
+
+        # 6. Emissão do PDF e Finalização
+        st.markdown("---")
+        st.subheader("📄 Emissão do Relatório Técnico em PDF")
         data_hoje = datetime.date.today().strftime("%d/%m/%Y")
         dados_relatorio = {
             "empresa_cliente": empresa_cliente,
@@ -832,6 +1259,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
                     tot_econ_max,
                     pdf_bytes_final
                 )
+                limpar_rascunho_db(st.session_state.usuario_logado)
                 st.toast("✅ Relatório salvo no histórico com sucesso!")
 
         with c_baixar:
@@ -845,8 +1273,11 @@ elif aba_selecionada == "📋 Nova Vistoria":
             )
 
         with c_limpar:
-            if st.button("🗑️ Nova Vistoria", use_container_width=True):
+            if st.button("🗑️ Nova Vistoria (Limpar Tudo)", use_container_width=True):
+                limpar_rascunho_db(st.session_state.usuario_logado)
                 st.session_state.evidencias = []
                 st.session_state.fotos_atuais = []
+                st.session_state.ia_sugestao = None
+                st.session_state.editando_indice = None
                 st.session_state.modo_adicionar = True
                 st.rerun()
