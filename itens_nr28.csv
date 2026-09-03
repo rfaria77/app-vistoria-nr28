@@ -1,0 +1,85 @@
+﻿nr,item,descricao,infracao,tipo,categoria
+NR 01,1.5.3.1,Deixar de elaborar ou de implementar o PGR,I4,S,Gerenciamento de Riscos
+NR 01,1.5.4.4.2,Não contemplar medidas de prevenção conforme classificação de riscos no PGR,I3,S,PGR
+NR 01,1.5.5.1.1,Não realizar o acompanhamento das medidas de prevenção do PGR,I3,S,PGR
+NR 01,1.5.7.1,Não manter o inventário de riscos ocupacionais atualizado,I3,S,Documentação
+NR 01,1.5.7.2,Não manter o plano de ação do PGR atualizado,I3,S,Documentação
+NR 01,1.7.1,Não prestar informações sobre os riscos aos trabalhadores ou deixar de emitir ordens de serviço,I2,S,Treinamento / Informação
+NR 04,4.3.1,Não constituir ou manter em funcionamento o SESMT quando obrigatório,I4,S,SESMT
+NR 04,4.4.1,Dimensionamento do SESMT em desacordo com os quadros da norma,I3,S,SESMT
+NR 04,4.5.1,Profissionais do SESMT exercendo outras atividades durante o horário de atuação,I3,S,SESMT
+NR 05,5.3.1,Não constituir CIPA ou não designar responsável conforme dimensionamento,I3,S,CIPA
+NR 05,5.7.1,Deixar de realizar o treinamento obrigatório da CIPA para titulares/suplentes,I3,S,Treinamento
+NR 05,5.8.1,Não realizar reuniões ordinárias mensais da CIPA,I2,S,CIPA
+NR 06,6.3.1,Não fornecer aos empregados gratuitamente EPI adequado ao risco,I4,S,EPI
+NR 06,6.5.1,Fornecer EPI sem Certificado de Aprovação (CA) válido expedido pelo órgão competente,I3,S,EPI
+NR 06,6.5.2,Não exigir o uso efetivo dos equipamentos de proteção individual,I3,S,EPI
+NR 06,6.5.2.c,"Não orientar e treinar o empregado sobre o uso adequado, guarda e conservação do EPI",I3,S,Treinamento
+NR 06,6.5.2.e,Não substituir imediatamente o EPI quando danificado ou extraviado,I3,S,EPI
+NR 06,6.5.2.f,Não registrar o fornecimento de EPI ao empregado por meio físico ou eletrônico,I2,S,Documentação
+NR 07,7.5.1,Deixar de elaborar e implementar o Programa de Controle Médico de Saúde Ocupacional (PCMSO),I3,M,PCMSO
+NR 07,7.5.6,Deixar de realizar exame médico admissional antes de o empregado assumir atividades,I3,M,Exames Médicos
+NR 07,7.5.8,Não realizar o exame médico periódico dentro do prazo regulamentar,I2,M,Exames Médicos
+NR 07,7.5.9,Não realizar exame médico de retorno ao trabalho antes da volta às funções,I2,M,Exames Médicos
+NR 07,7.5.10,Não realizar exame médico de mudança de riscos ocupacionais,I2,M,Exames Médicos
+NR 07,7.5.11,Deixar de realizar exame médico demissional até 10 dias após rescisão,I2,M,Exames Médicos
+NR 07,7.6.1,Não emitir o Atestado de Saúde Ocupacional (ASO) em 2 vias para cada exame,I2,M,Documentação
+NR 09,9.4.1,Não realizar a identificação das exposições ocupacionais aos agentes ambientais,I3,S,Higiene Ocupacional
+NR 09,9.5.1,Deixar de realizar avaliação quantitativa das exposições quando aplicável,I3,S,Higiene Ocupacional
+NR 09,9.6.1,Não adotar medidas preventivas ou corretivas ao atingir o nível de ação,I3,S,Prevenção
+NR 10,10.2.1,Não adotar medidas preventivas de controle do risco elétrico nos projetos,I3,S,Instalações Elétricas
+NR 10,10.2.8.1,Não priorizar medidas de proteção coletiva em instalações elétricas (desenergização/tensão de segurança),I4,S,Proteção Coletiva
+NR 10,10.2.8.2,"Falta de adoção de isolamento, barreiras ou sinalização em circuitos com tensão",I3,S,Proteção Elétrica
+NR 10,10.3.9,Circuitos elétricos com dispositivos de proteção superdimensionados ou improvisados,I3,S,Instalações Elétricas
+NR 10,10.7.1,"Trabalhadores intervindo em alta tensão sem habilitação, capacitação ou autorização",I4,S,Capacitação / SEP
+NR 10,10.8.8,Permitir que trabalhadores não autorizados ou sem treinamento intervenham em instalações elétricas,I4,S,Capacitação
+NR 11,11.1.3,"Equipamentos de transporte motorizados sem buzina, luz ou espelhos",I2,S,Máquinas / Veículos
+NR 11,11.1.5,"Operador de equipamento de movimentação (empilhadeira, ponte rolante) sem treinamento ou CNH",I3,S,Treinamento
+NR 11,11.1.6,Equipamentos de guindar sem indicação visível de sua carga máxima de trabalho permitida,I2,S,Equipamentos
+NR 11,11.2.2,"Armazenamento de material obstruindo portas, extintores ou saídas de emergência",I2,S,Armazenamento
+NR 11,11.2.5,Empilhamento de materiais em pisos sem resistência mecânica adequada ou instáveis,I3,S,Armazenamento
+NR 12,12.2.1,Máquinas sem espaçamento seguro entre si ou passagens desobstruídas,I2,S,Layout Industrial
+NR 12,12.4.1,Dispositivos de partida e parada colocados em zona de perigo da máquina,I3,S,Comandos Elétricos
+NR 12,12.5.1,Zonas de perigo de máquinas desprovidas de proteções físicas ou intertravamento,I4,S,Proteção Mecânica
+NR 12,12.6.1,"Dispositivos de parada de emergência ausentes, inacessíveis ou inoperantes",I4,S,Emergência
+NR 12,12.7.1,"Falta de sinalização de segurança, advertência ou perigo nas máquinas",I2,S,Sinalização
+NR 12,12.11.1,Falta de procedimentos de manutenção preventiva ou bloqueio LOTO durante intervenções,I4,S,Manutenção e LOTO
+NR 12,12.16.1,Operação de máquinas por colaboradores sem capacitação específica da NR 12,I3,S,Capacitação
+NR 13,13.4.1.1,Operar caldeira sem válvula de segurança ou com calibração vencida,I4,S,Vapor / Caldeiras
+NR 13,13.4.2.1,Inexistência de livro de registro de segurança ou prontuário de vaso de pressão/caldeira,I3,S,Documentação
+NR 13,13.4.4.1,Operador de caldeira sem comprovação de treinamento e estágio supervisionado,I3,S,Capacitação
+NR 17,17.3.1,Deixar de realizar a Análise Ergonômica do Trabalho (AET) quando exigido,I3,S,Ergonomia
+NR 17,17.4.3,Assentos utilizados nos postos de trabalho sem regulagem ou apoio adequado,I2,S,Mobiliário
+NR 17,17.5.1,"Condições de iluminação, conforto térmico ou acústico fora dos parâmetros mínimos",I2,S,Conforto Ambiental
+NR 17,17.6.2,Exigência de transporte manual de cargas com peso suscetível de comprometer a saúde do trabalhador,I3,S,Levantamento de Cargas
+NR 18,18.4.1,Canteiro de obras sem elaboração e cumprimento do PGR específico da obra,I4,S,Construção Civil
+NR 18,18.5.1,"Áreas de vivência do canteiro inadequadas (sanitários, vestiários, refeitório ausentes)",I3,S,Áreas de Vivência
+NR 18,18.7.1,"Escavações com profundidade superior a 1,25m sem escoramento ou talude seguro",I4,S,Escavações
+NR 18,18.9.1,"Andaimes montados sem projeto, sem piso completo, antiderrapante ou sem rodapé",I4,S,Andaimes
+NR 18,18.9.12,Utilização de andaimes suspensos sem sistema de fixação e trava-quedas independente,I4,S,Andaimes Suspensos
+NR 18,18.10.1,Falta de proteção contra queda em aberturas no piso e periferias (guarda-corpo/telas),I4,S,Proteção Contra Quedas
+NR 18,18.11.1,Elevadores de obra de passageiros/materiais sem laudo de conformidade ou manutenção,I4,S,Elevadores de Obra
+NR 20,20.5.1,Trabalhadores em instalações de inflamáveis sem capacitação do curso básico/intermediário,I3,S,Capacitação
+NR 20,20.7.1,Armazenamento de inflamáveis em recinto fechado sem ventilação adequada e aterramento,I4,S,Inflamáveis
+NR 20,20.10.1,Trabalhos a quente em áreas com vapores inflamáveis sem teste de inflamabilidade (explosímetro),I4,S,Trabalho a Quente
+NR 23,23.2.1,"Extintores de incêndio com carga vencida, sem selo INMETRO ou despressurizados",I2,S,Combate a Incêndio
+NR 23,23.3.1,"Rotas de fuga e saídas de emergência trancadas, obstruídas ou sem sinalização fotoluminescente",I3,S,Saídas de Emergência
+NR 23,23.4.1,Trabalhadores sem treinamento prático de combate a princípios de incêndio e evacuação,I2,S,Brigada / Treinamento
+NR 24,24.2.1,Instalações sanitárias sem separação por sexo ou em número insuficiente para o efetivo,I2,S,Sanitários
+NR 24,24.2.5,"Falta de lavatórios com sabonete líquido, toalhas descartáveis ou lixeiras com tampa",I1,S,Higiene
+NR 24,24.3.1,"Vestiários inexistentes onde a atividade exija troca de uniforme, ou sem armários individuais",I2,S,Vestiários
+NR 24,24.5.1,"Local para refeições inadequado, insalubre, sem mesas, assentos ou meios para aquecimento de comida",I2,S,Refeitório
+NR 26,26.2.1,Produtos químicos sem rotulagem preventiva e sem FISPQ/FDS disponível no local de uso,I3,S,Produtos Químicos
+NR 26,26.3.1,Tubulações de fluidos perigosos sem identificação de cores padronizadas,I2,S,Sinalização
+NR 33,33.2.1,Deixar de identificar e cadastrar os espaços confinados existentes no estabelecimento,I3,S,Espaço Confinado
+NR 33,33.3.1,Trabalho em espaço confinado sem emissão da Permissão de Entrada e Trabalho (PET),I4,S,PET
+NR 33,33.3.2,"Entrada em espaço confinado sem medição prévia de oxigênio, gases tóxicos e explosividade",I4,S,Atmosfera
+NR 33,33.3.3,Ausência de vigia durante todo o tempo de permanência de trabalhadores no espaço confinado,I4,S,Supervisão / Vigia
+NR 33,33.3.5,Equipe de resgate e plano de emergência inexistentes ou inoperantes para espaço confinado,I4,S,Resgate
+NR 33,33.4.1,Trabalhadores e vigias sem o treinamento periódico obrigatório de 16h da NR 33,I3,S,Treinamento
+NR 35,35.2.1,"Realização de trabalho em altura sem planejamento, Análise de Risco (AR) ou Permissão de Trabalho (PT)",I4,S,Planejamento / AR
+NR 35,35.3.1,Trabalhador em altura sem capacitação teórica/prática de 8 horas com aproveitamento satisfatório,I3,S,Capacitação
+NR 35,35.4.1,Trabalho em altura sem exame médico com conclusão de aptidão física/psíquica no ASO,I3,M,Aptidão Médica
+NR 35,35.5.1,"Sistema de Proteção Contra Quedas (SPCQ) ausente, incompleto ou não inspecionado",I4,S,Linha de Vida / SPCQ
+NR 35,35.5.2,"Ponto de ancoragem sem projeto, memorial de cálculo ou ART de profissional legalmente habilitado",I4,S,Ancoragem
+NR 35,35.5.11,Uso de talabarte ou trava-quedas sem absorvedor de energia em altura com fator de queda superior a 1,I4,S,EPI Altura
