@@ -123,11 +123,9 @@ init_db()
 def salvar_rascunho_db(usuario, empresa, inspetor, faixa_func, lista_evidencias):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # Serializa evidências sem os objetos PIL para salvar rápido em JSON
     evidencias_serializaveis = []
     for ev in lista_evidencias:
         item_copia = dict(ev)
-        # Converte lista de PIL Images para base64/bytes buffers simplificados
         img_buffers = []
         for img in item_copia.get("imagens", []):
             buf = io.BytesIO()
@@ -163,7 +161,6 @@ def carregar_rascunho_db(usuario):
         return None
     empresa, inspetor, faixa_func, dados_json, atualizado_em = row
     itens = json.loads(dados_json)
-    # Reconstrói imagens PIL a partir do hex
     for it in itens:
         imgs_pil = []
         for hex_str in it.get("imagens_hex", []):
@@ -368,7 +365,6 @@ def analisar_imagem_com_ia(imagem_pil):
         return None, "Chave GEMINI_API_KEY não configurada nos Secrets do Streamlit."
 
     try:
-        # Configuração de cliente com timeout de segurança para conexões de campo
         client = genai.Client(api_key=api_key)
         prompt = """
         Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
@@ -719,7 +715,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
-    # 6. Plano de Ação com Descrição Legal
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -892,7 +887,7 @@ if aba_selecionada == "⚙️ Painel de Administração":
             st.info("Nenhum relatório foi salvo até o momento.")
 
 # =========================================================
-# ABA 2: NOVA VISTORIA (Com Rascunho, Edição e Exclusão)
+# ABA 2: NOVA VISTORIA
 # =========================================================
 elif aba_selecionada == "📋 Nova Vistoria":
     if "evidencias" not in st.session_state:
@@ -907,8 +902,9 @@ elif aba_selecionada == "📋 Nova Vistoria":
         st.session_state.ia_sugestao = None
     if "editando_indice" not in st.session_state:
         st.session_state.editando_indice = None
+    if "abrir_camera" not in st.session_state:
+        st.session_state.abrir_camera = False
 
-    # Verificação de Rascunho Pendente do Usuário
     rascunho_existente = carregar_rascunho_db(st.session_state.usuario_logado)
     if rascunho_existente and not st.session_state.evidencias:
         st.info(f"💾 **Rascunho detectado!** Foi encontrada uma vistoria em andamento de `{rascunho_existente['empresa']}` salva em {rascunho_existente['atualizado_em']}.")
@@ -948,7 +944,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
     c2.metric("⚠️ Multas em Risco (Máx)", formata_brl(tot_multa_max), delta=f"-{formata_brl(tot_multa_min)} (mín)", delta_color="inverse")
     c3.metric("✅ Economia Gerada (Máx)", formata_brl(tot_econ_max), delta=f"+{formata_brl(tot_econ_min)} (mín)")
 
-    # 3. Formulário de Apontamentos (Novo ou Edição)
+    # 3. Formulário de Apontamentos
     if st.session_state.modo_adicionar or st.session_state.editando_indice is not None:
         st.markdown("---")
         idx_edicao = st.session_state.editando_indice
@@ -964,16 +960,30 @@ elif aba_selecionada == "📋 Nova Vistoria":
 
         st.markdown("**1. Registros Fotográficos (Carimbo Forense e Otimização):**")
         col_cam, col_up = st.columns(2)
+        
         with col_cam:
-            foto_cam = st.camera_input("Tirar foto com câmera", key=f"cam_{st.session_state.contador_fluxo}")
-            if foto_cam and st.button("➕ Adicionar foto da câmera", use_container_width=True):
-                img_proc = otimizar_e_carimbar(Image.open(foto_cam), lat_capturada, lon_capturada)
-                st.session_state.fotos_atuais.append(img_proc)
-                st.success("Foto processada e carimbada!")
+            if not st.session_state.abrir_camera:
+                if st.button("📷 Abrir Câmera", use_container_width=True):
+                    st.session_state.abrir_camera = True
+                    st.rerun()
+            else:
+                foto_cam = st.camera_input("Enquadre e tire a foto:", key=f"cam_{st.session_state.contador_fluxo}")
+                col_c1, col_c2 = st.columns(2)
+                with col_c1:
+                    if foto_cam and st.button("➕ Confirmar Foto", use_container_width=True, type="primary"):
+                        img_proc = otimizar_e_carimbar(Image.open(foto_cam), lat_capturada, lon_capturada)
+                        st.session_state.fotos_atuais.append(img_proc)
+                        st.session_state.abrir_camera = False
+                        st.success("Foto salva com carimbo!")
+                        st.rerun()
+                with col_c2:
+                    if st.button("❌ Fechar Câmera", use_container_width=True):
+                        st.session_state.abrir_camera = False
+                        st.rerun()
 
         with col_up:
             arquivos_up = st.file_uploader(
-                "Ou selecione imagens da galeria:",
+                "Ou selecione da galeria:",
                 type=["jpg", "jpeg", "png"],
                 accept_multiple_files=True,
                 key=f"up_{st.session_state.contador_fluxo}"
@@ -1148,12 +1158,12 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 st.session_state.evidencias.append(novo_dado)
                 st.toast("✅ Apontamento salvo no laudo!")
 
-            # Auto-save no SQLite para resiliência contra fechamentos
             salvar_rascunho_db(st.session_state.usuario_logado, empresa_cliente, inspetor, faixa_func, st.session_state.evidencias)
 
             st.session_state.fotos_atuais = []
             st.session_state.ia_sugestao = None
             st.session_state.modo_adicionar = False
+            st.session_state.abrir_camera = False
             st.session_state.contador_fluxo += 1
             st.rerun()
 
@@ -1165,13 +1175,15 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 st.session_state.modo_adicionar = True
                 st.session_state.editando_indice = None
                 st.session_state.fotos_atuais = []
+                st.session_state.abrir_camera = False
                 st.rerun()
         with col_b:
             if st.button("🏁 Finalizar Vistoria e Visualizar Laudo", type="primary", use_container_width=True):
                 st.session_state.modo_adicionar = False
                 st.session_state.editando_indice = None
+                st.session_state.abrir_camera = False
 
-    # 4. Gerenciador de Apontamentos Inseridos (Editar e Excluir)
+    # 4. Gerenciador de Apontamentos (Editar / Excluir)
     if st.session_state.evidencias:
         st.markdown("---")
         st.subheader(f"📑 Apontamentos Registrados ({len(st.session_state.evidencias)})")
@@ -1193,6 +1205,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
                         st.session_state.editando_indice = idx
                         st.session_state.modo_adicionar = True
                         st.session_state.fotos_atuais = list(ev.get("imagens", []))
+                        st.session_state.abrir_camera = False
                         st.rerun()
                 with col_btn2:
                     if st.button(f"🗑️ Excluir Apontamento #{idx + 1}", key=f"btn_del_{idx}", use_container_width=True):
@@ -1279,5 +1292,6 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 st.session_state.fotos_atuais = []
                 st.session_state.ia_sugestao = None
                 st.session_state.editando_indice = None
+                st.session_state.abrir_camera = False
                 st.session_state.modo_adicionar = True
                 st.rerun()
