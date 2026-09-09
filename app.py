@@ -39,6 +39,7 @@ st.markdown("""
         overscroll-behavior-y: none !important;
         overscroll-behavior: none !important;
         background-color: #F8FAFC !important;
+        color: #0F172A !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     }
     .stApp, div[data-testid="stAppViewContainer"] {
@@ -47,11 +48,34 @@ st.markdown("""
         background-color: #F8FAFC !important;
     }
 
-    /* Espaçamento superior ajustado */
+    /* Força contraste de texto (evita letras invisíveis no Dark Mode do PC) */
+    h1, h2, h3, h4, h5, h6, p, label, span, strong, b {
+        color: #0F172A !important;
+    }
+
+    /* Cabeçalho e conteúdo dos Expanders */
+    div[data-testid="stExpander"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+        margin-bottom: 10px !important;
+    }
+    div[data-testid="stExpander"] summary,
+    div[data-testid="stExpander"] summary p,
+    div[data-testid="stExpander"] summary span {
+        color: #0F172A !important;
+        font-weight: 700 !important;
+    }
+    div[data-testid="stExpander"] div[role="region"] {
+        color: #1E293B !important;
+    }
+
+    /* Espaçamento superior */
     .block-container {
         padding-top: 1.2rem !important;
         padding-bottom: 3.5rem !important;
-        max-width: 680px !important;
+        max-width: 720px !important;
     }
 
     /* Cards de KPI Financeiro */
@@ -63,85 +87,88 @@ st.markdown("""
     }
     .kpi-card {
         flex: 1;
-        background: #FFFFFF;
+        background: #FFFFFF !important;
         border-radius: 14px;
         padding: 14px 16px;
         box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
         border: 1px solid #E2E8F0;
-        transition: transform 0.15s ease;
     }
-    .kpi-card-danger {
-        border-top: 4px solid #EF4444;
-    }
-    .kpi-card-success {
-        border-top: 4px solid #10B981;
-    }
+    .kpi-card-danger { border-top: 4px solid #EF4444 !important; }
+    .kpi-card-success { border-top: 4px solid #10B981 !important; }
+    .kpi-card-info { border-top: 4px solid #3B82F6 !important; }
     .kpi-title {
         font-size: 0.75rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        color: #64748B;
+        color: #64748B !important;
         margin-bottom: 4px;
     }
     .kpi-value {
-        font-size: 1.22rem;
+        font-size: 1.25rem;
         font-weight: 800;
         line-height: 1.2;
     }
-    .kpi-value-danger { color: #DC2626; }
-    .kpi-value-success { color: #059669; }
+    .kpi-value-danger { color: #DC2626 !important; }
+    .kpi-value-success { color: #059669 !important; }
+    .kpi-value-info { color: #1D4ED8 !important; }
     .kpi-sub {
-        font-size: 0.72rem;
-        color: #94A3B8;
+        font-size: 0.75rem;
+        color: #64748B !important;
         margin-top: 4px;
     }
 
-    /* Banner Assistente de IA */
+    /* Banners e Cartões Informativos */
     .ai-assistant-card {
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        border: 1px solid #BFDBFE;
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%) !important;
+        border: 1px solid #BFDBFE !important;
         border-radius: 14px;
         padding: 14px 16px;
         margin-bottom: 16px;
-        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
+    }
+    .offline-card {
+        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%) !important;
+        border: 1px solid #FCD34D !important;
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
     }
 
-    /* Cartões de Enquadramento Legal */
     .norma-card {
-        background-color: #FFFFFF;
-        border-left: 5px solid #2563EB;
+        background-color: #FFFFFF !important;
+        border-left: 5px solid #2563EB !important;
         padding: 14px 16px;
         border-radius: 10px;
         margin-top: 10px;
         margin-bottom: 14px;
         box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-        border-top: 1px solid #F1F5F9;
-        border-right: 1px solid #F1F5F9;
-        border-bottom: 1px solid #F1F5F9;
+        border-top: 1px solid #E2E8F0;
+        border-right: 1px solid #E2E8F0;
+        border-bottom: 1px solid #E2E8F0;
     }
 
-    /* Botões Touch-Friendly (Grandes e Ergonômicos) */
+    /* Botões Touch-Friendly */
     .stButton > button {
         border-radius: 10px !important;
         min-height: 48px !important;
         font-weight: 600 !important;
         font-size: 0.95rem !important;
         transition: all 0.2s ease !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
-    }
-    .stButton > button:active {
-        transform: scale(0.98) !important;
     }
 
-    /* Inputs e Caixas de Seleção */
-    div[data-baseweb="input"], div[data-baseweb="select"] {
+    /* Entradas e Seletores */
+    div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
         border-radius: 10px !important;
+        background-color: #FFFFFF !important;
+    }
+    div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea {
+        color: #0F172A !important;
     }
     div[data-baseweb="select"] div {
         white-space: normal !important;
         word-break: break-word !important;
         line-height: 1.35 !important;
+        color: #0F172A !important;
     }
     div[data-baseweb="popover"] ul,
     div[data-baseweb="popover"] li {
@@ -149,6 +176,7 @@ st.markdown("""
         word-break: break-word !important;
         min-height: 46px !important;
         line-height: 1.4 !important;
+        color: #0F172A !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -455,7 +483,7 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     return img
 
 # ---------------------------------------------------------
-# Auditoria de Foto com Gemini
+# Auditoria de Foto com Gemini (Online)
 # ---------------------------------------------------------
 def analisar_imagem_com_ia(imagem_pil):
     api_key = None
@@ -511,9 +539,45 @@ def analisar_imagem_com_ia(imagem_pil):
         return None, f"Instabilidade na rede: {str(e)}"
 
 # ---------------------------------------------------------
-# Assistente Rápido por Texto/Voz (Groq Turbo com Fallback)
+# Buscador Local 100% Offline (Sem Internet)
 # ---------------------------------------------------------
-def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
+def enquadrar_local_offline(descricao_texto, df_base_nrs):
+    palavras = [p.lower().strip() for p in descricao_texto.split() if len(p) > 2]
+    if not palavras:
+        return None, "Texto muito curto para busca local."
+
+    df_copia = df_base_nrs.copy()
+    df_copia["score"] = 0
+
+    for p in palavras:
+        mask = (
+            df_copia["descricao"].str.lower().str.contains(p, na=False) |
+            df_copia["categoria"].str.lower().str.contains(p, na=False) |
+            df_copia["nr"].str.lower().str.contains(p, na=False)
+        )
+        df_copia.loc[mask, "score"] += 1
+
+    df_ordenado = df_copia.sort_values(by="score", ascending=False)
+    if df_ordenado.iloc[0]["score"] > 0:
+        melhor = df_ordenado.iloc[0]
+        return {
+            "status": "Não Conformidade",
+            "nr_sugerida": melhor["nr"],
+            "item_provavel": melhor["item"],
+            "descricao_cenario": f"Constatada condição irregular relacionada a: {melhor['descricao']}.",
+            "acao_corretiva": f"Adequar de imediato as condições de trabalho conforme requisitos da {melhor['nr']} (Item {melhor['item']}).",
+            "prioridade": "Alta" if melhor.get("infracao") in ["I4", "I3"] else "Média"
+        }, None
+    else:
+        return None, "Nenhuma norma coincidente encontrada localmente."
+
+# ---------------------------------------------------------
+# Assistente Rápido por Texto/Voz (Groq Turbo / Fallback Gemini)
+# ---------------------------------------------------------
+def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs, modo_offline=False):
+    if modo_offline:
+        return enquadrar_local_offline(descricao_problema, df_base_nrs)
+
     groq_key = None
     if hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
         groq_key = st.secrets["GROQ_API_KEY"]
@@ -522,7 +586,6 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
 
     nrs_disponiveis = sorted(df_base_nrs["nr"].unique())
 
-    # Rota Groq (Llama 3.3 70B)
     if groq_key:
         try:
             client = Groq(api_key=groq_key)
@@ -552,7 +615,6 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
         except Exception:
             pass
 
-    # Fallback para Gemini
     gemini_key = None
     if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
         gemini_key = st.secrets["GEMINI_API_KEY"]
@@ -585,10 +647,11 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
                 except Exception:
                     time.sleep(1.2)
                     continue
-        except Exception as e:
-            return None, f"Erro: {str(e)}"
+        except Exception:
+            pass
 
-    return None, "Chave de IA não configurada."
+    # Se a rede estiver indisponível no momento, recorre ao motor local
+    return enquadrar_local_offline(descricao_problema, df_base_nrs)
 
 # ---------------------------------------------------------
 # Link Direto para WhatsApp
@@ -690,6 +753,35 @@ def gerar_grafico_multas(lista_evidencias):
     ax2.set_xticklabels(cats, fontsize=8.5, fontweight='bold')
     ax2.legend(frameon=True, fontsize=7.5)
     ax2.grid(axis='y', linestyle='--', alpha=0.3)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format='PNG', dpi=180)
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+def gerar_grafico_historico_empresa(df_empresa):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7.2, 3.2))
+    df_sorted = df_empresa.sort_values(by="id", ascending=True).reset_index(drop=True)
+
+    rotulos_datas = [f"Vistoria #{r['id']}\n({r['data']})" for _, r in df_sorted.iterrows()]
+
+    # Gráfico 1: Queda do Passivo Fiscal em Risco
+    ax1.plot(range(len(df_sorted)), df_sorted["multa_max"], marker='o', color='#DC2626', linewidth=2.5, label="Multa Máx em Risco")
+    ax1.fill_between(range(len(df_sorted)), df_sorted["multa_max"], color='#FEE2E2', alpha=0.5)
+    ax1.set_title("Evolução do Passivo (Risco R$)", fontsize=9, fontweight='bold', pad=8)
+    ax1.set_xticks(range(len(df_sorted)))
+    ax1.set_xticklabels(rotulos_datas, fontsize=7.5)
+    ax1.grid(axis='y', linestyle='--', alpha=0.4)
+    ax1.legend(fontsize=7.5)
+
+    # Gráfico 2: Quantidade de Itens Apontados
+    ax2.bar(range(len(df_sorted)), df_sorted["total_itens"], color='#3B82F6', width=0.4)
+    ax2.set_title("Total de Itens Auditados", fontsize=9, fontweight='bold', pad=8)
+    ax2.set_xticks(range(len(df_sorted)))
+    ax2.set_xticklabels(rotulos_datas, fontsize=7.5)
+    ax2.grid(axis='y', linestyle='--', alpha=0.4)
 
     plt.tight_layout()
     buf = io.BytesIO()
@@ -905,6 +997,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
+    # 6. Plano de Ação com Descrição Legal
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -969,6 +1062,15 @@ with st.sidebar:
     else:
         st.caption("📍 GPS: Aguardando sinal...")
 
+    # Chave do Modo Offline
+    if "modo_offline" not in st.session_state:
+        st.session_state.modo_offline = False
+
+    st.markdown("---")
+    st.session_state.modo_offline = st.toggle("📴 Modo Campo / Sem Sinal (Offline)", value=st.session_state.modo_offline)
+    if st.session_state.modo_offline:
+        st.caption("⚡ Busca local ativa no dispositivo. Chamadas em nuvem desativadas.")
+
     if st.button("🚪 Encerrar Sessão", use_container_width=True):
         token_atual = st.query_params.get("session")
         if token_atual:
@@ -998,11 +1100,11 @@ with st.sidebar:
         st.image(logo_para_relatorio, caption="Logo padrão", width=140)
 
 # =========================================================
-# ABA 1: PAINEL DE ADMINISTRAÇÃO
+# ABA 1: PAINEL DE ADMINISTRAÇÃO & DASHBOARD POR EMPRESA
 # =========================================================
 if aba_selecionada == "⚙️ Painel de Administração":
     st.title("⚙️ Painel do Administrador")
-    tab_usuarios, tab_relatorios = st.tabs(["👥 Usuários", "📂 Histórico de Laudos"])
+    tab_usuarios, tab_relatorios, tab_dashboard = st.tabs(["👥 Usuários", "📂 Histórico de Laudos", "📈 Dashboard por Empresa"])
 
     with tab_usuarios:
         usuarios_atuais = listar_usuarios()
@@ -1060,10 +1162,62 @@ if aba_selecionada == "⚙️ Painel de Administração":
                     use_container_width=True
                 )
         else:
-            st.info("Nenhum laudo salvo.")
+            st.info("Nenhum laudo salvo no sistema.")
+
+    with tab_dashboard:
+        st.subheader("Evolução de SST e Redução de Riscos")
+        relatorios_salvos = listar_relatorios()
+        if relatorios_salvos:
+            df_todos = pd.DataFrame(
+                relatorios_salvos,
+                columns=["id", "data", "empresa", "inspetor", "total_itens", "multa_min", "multa_max", "economia_min", "economia_max"]
+            )
+            empresas_unicas = sorted(df_todos["empresa"].unique())
+            emp_selecionada = st.selectbox("Selecione a Empresa para Análise:", empresas_unicas)
+
+            df_emp = df_todos[df_todos["empresa"] == emp_selecionada].sort_values(by="id", ascending=True)
+
+            if len(df_emp) > 0:
+                primeira_multa = df_emp.iloc[0]["multa_max"]
+                ultima_multa = df_emp.iloc[-1]["multa_max"]
+                total_economizado = df_emp["economia_max"].sum()
+                qtd_vistorias = len(df_emp)
+
+                diff_perc = 0
+                if primeira_multa > 0:
+                    diff_perc = ((primeira_multa - ultima_multa) / primeira_multa) * 100
+
+                st.markdown(f"""
+                <div class="kpi-container">
+                    <div class="kpi-card kpi-card-info">
+                        <div class="kpi-title">Vistorias Realizadas</div>
+                        <div class="kpi-value kpi-value-info">{qtd_vistorias}</div>
+                        <div class="kpi-sub">Total de inspeções salvas</div>
+                    </div>
+                    <div class="kpi-card kpi-card-danger">
+                        <div class="kpi-title">Risco Atual (Última)</div>
+                        <div class="kpi-value kpi-value-danger">{formata_brl(ultima_multa)}</div>
+                        <div class="kpi-sub">Inicial: {formata_brl(primeira_multa)}</div>
+                    </div>
+                    <div class="kpi-card kpi-card-success">
+                        <div class="kpi-title">Redução de Passivo</div>
+                        <div class="kpi-value kpi-value-success">{diff_perc:.1f}%</div>
+                        <div class="kpi-sub">Economia Acum.: {formata_brl(total_economizado)}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if len(df_emp) > 1:
+                    st.markdown("**Gráfico de Tendência (Evolução do Passivo Fiscal):**")
+                    buf_graf = gerar_grafico_historico_empresa(df_emp)
+                    st.image(buf_graf, use_container_width=True)
+                else:
+                    st.info("Esta empresa possui apenas 1 vistoria salva. Realize a próxima auditoria para habilitar o gráfico evolutivo de redução de riscos.")
+        else:
+            st.info("Nenhuma vistoria salva para exibição do dashboard.")
 
 # =========================================================
-# ABA 2: VISTORIA EM CAMPO (Design Mobile Nativo)
+# ABA 2: VISTORIA EM CAMPO (Online & Offline)
 # =========================================================
 elif aba_selecionada == "📋 Vistoria em Campo":
     if "evidencias" not in st.session_state:
@@ -1081,7 +1235,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
     if "abrir_camera" not in st.session_state:
         st.session_state.abrir_camera = False
 
-    # Recuperação de rascunho em caso de fechamento acidental
     rascunho_existente = carregar_rascunho_db(st.session_state.usuario_logado)
     if rascunho_existente and not st.session_state.evidencias:
         st.markdown(f"""
@@ -1102,14 +1255,15 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 st.rerun()
 
     # Cabeçalho Principal
-    st.markdown("""
+    modo_status_badge = "⚡ Online (IA Turbo)" if not st.session_state.modo_offline else "📴 Modo Offline Local"
+    st.markdown(f"""
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
         <div>
             <h2 style="margin:0; font-weight:800; color:#0F172A; font-size:1.45rem;">Vistoria de Campo</h2>
             <span style="color:#64748B; font-size:0.85rem;">Enquadramento NR 28 & Avaliação Financeira</span>
         </div>
         <div style="background:#EEF2F6; padding:8px 12px; border-radius:10px; font-weight:700; color:#1E293B; font-size:0.85rem;">
-            🛡️ SST Pro
+            {modo_status_badge}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1164,31 +1318,44 @@ elif aba_selecionada == "📋 Vistoria em Campo":
             st.markdown(f"#### ➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
             item_edicao = None
 
-        # Assistente Rápido Groq (Voz ou Texto)
-        st.markdown("""
-        <div class="ai-assistant-card">
-            <div style="font-weight:700; color:#1E40AF; font-size:0.92rem; margin-bottom:2px;">
-                ⚡ Enquadramento Rápido (Texto ou Ditado de Voz)
+        # Assistente de Enquadramento
+        if not st.session_state.modo_offline:
+            st.markdown("""
+            <div class="ai-assistant-card">
+                <div style="font-weight:700; color:#1E40AF; font-size:0.92rem; margin-bottom:2px;">
+                    ⚡ Enquadramento Inteligente (Texto ou Ditado de Voz)
+                </div>
+                <div style="font-size:0.8rem; color:#3B82F6;">
+                    Dite ou digite o que foi visto na obra para localizar a norma automaticamente:
+                </div>
             </div>
-            <div style="font-size:0.8rem; color:#3B82F6;">
-                Dite ou digite o que foi visto na obra para localizar a norma automaticamente:
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="offline-card">
+                <div style="font-weight:700; color:#92400E; font-size:0.92rem; margin-bottom:2px;">
+                    📴 Buscador Local Ativo (100% Offline)
+                </div>
+                <div style="font-size:0.8rem; color:#B45309;">
+                    Digite palavras-chave (ex: altura, epi, serra, eletrica) para buscar na base interna sem internet:
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
         col_t1, col_t2 = st.columns([3, 1.2])
         with col_t1:
             texto_relato = st.text_input(
                 "Descreva a ocorrência:",
-                placeholder="Ex: Trabalho a 4m sem cinto e sem linha de vida montada",
+                placeholder="Ex: Operários em andaime a 4m sem cinto e sem proteção de periferia",
                 key=f"texto_ia_{st.session_state.contador_fluxo}",
                 label_visibility="collapsed"
             )
         with col_t2:
-            if st.button("🔍 Enquadrar", use_container_width=True, type="secondary"):
+            botao_label = "🔍 Enquadrar" if not st.session_state.modo_offline else "⚡ Buscar NR"
+            if st.button(botao_label, use_container_width=True, type="secondary"):
                 if texto_relato.strip():
-                    with st.spinner("Analisando..."):
-                        res_ia, err_ia = sugerir_enquadramento_por_texto(texto_relato, df_nr_base)
+                    with st.spinner("Localizando norma..."):
+                        res_ia, err_ia = sugerir_enquadramento_por_texto(texto_relato, df_nr_base, st.session_state.modo_offline)
                         if res_ia:
                             st.session_state.ia_sugestao = res_ia
                             st.toast(f"✅ Enquadrado na {res_ia.get('nr_sugerida', 'NR')}!")
@@ -1235,15 +1402,16 @@ elif aba_selecionada == "📋 Vistoria em Campo":
 
             col_ia, col_limp = st.columns([1.5, 1])
             with col_ia:
-                if st.button("✨ Analisar Foto com Gemini", use_container_width=True):
-                    with st.spinner("Avaliando imagem..."):
-                        res_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
-                        if res_ia:
-                            st.session_state.ia_sugestao = res_ia
-                            st.toast("✅ Sugestão aplicada!")
-                            st.rerun()
-                        else:
-                            st.warning(err_ia)
+                if not st.session_state.modo_offline:
+                    if st.button("✨ Analisar Foto com Gemini", use_container_width=True):
+                        with st.spinner("Avaliando imagem..."):
+                            res_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
+                            if res_ia:
+                                st.session_state.ia_sugestao = res_ia
+                                st.toast("✅ Sugestão aplicada!")
+                                st.rerun()
+                            else:
+                                st.warning(err_ia)
             with col_limp:
                 if st.button("❌ Limpar Fotos", use_container_width=True):
                     st.session_state.fotos_atuais = []
