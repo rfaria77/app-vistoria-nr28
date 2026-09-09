@@ -185,7 +185,7 @@ def limpar_rascunho_db(usuario):
     conn.close()
 
 # ---------------------------------------------------------
-# Gestão de Sessão (Token)
+# Gestão de Sessão (Token de 7 Dias)
 # ---------------------------------------------------------
 def criar_sessao(usuario, perfil):
     token = uuid.uuid4().hex
@@ -352,9 +352,9 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     return img
 
 # ---------------------------------------------------------
-# Auditor Assistente com IA (Gemini com Timeout Resiliente)
+# Assistente de Enquadramento por Texto / Voz (Gemini IA)
 # ---------------------------------------------------------
-def analisar_imagem_com_ia(imagem_pil):
+def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
     api_key = None
     if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
         api_key = st.secrets["GEMINI_API_KEY"]
@@ -366,39 +366,41 @@ def analisar_imagem_com_ia(imagem_pil):
 
     try:
         client = genai.Client(api_key=api_key)
-        prompt = """
+        nrs_disponiveis = sorted(df_base_nrs["nr"].unique())
+
+        prompt = f"""
         Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
-        Analise a imagem desta inspeção e forneça estritamente um JSON estruturado:
-        {
+        
+        O inspetor em campo relatou a seguinte ocorrência:
+        "{descricao_problema}"
+
+        Com base exclusivamente na legislação brasileira de SST e preferencialmente nas normas cadastradas ({', '.join(nrs_disponiveis)}):
+        1. Identifique se representa "Não Conformidade" ou "Conformidade".
+        2. Indique a NR mais adequada (ex: "NR 35", "NR 10", "NR 12", "NR 06", etc.).
+        3. Indique o item provável da norma.
+        4. Descreva de forma técnica e formal o cenário.
+        5. Formule a ação corretiva imediata.
+        6. Determine a prioridade (Alta, Média ou Baixa).
+
+        Responda ESTRITAMENTE em formato JSON:
+        {{
             "status": "Não Conformidade" ou "Conformidade",
             "nr_sugerida": "Ex: NR 35",
             "item_provavel": "Ex: 35.2.1",
-            "descricao_cenario": "Descrição clara e objetiva do que foi visualizado na cena",
-            "acao_corretiva": "Medida corretiva técnica imediata recomendada",
+            "descricao_cenario": "Resumo técnico objetivo do fato",
+            "acao_corretiva": "Medida técnica recomendada",
             "prioridade": "Alta", "Média" ou "Baixa"
-        }
+        }}
         """
 
-        img_ia = imagem_pil.copy()
-        img_ia.thumbnail((800, 800), Image.Resampling.BILINEAR)
-        buf = io.BytesIO()
-        img_ia.save(buf, format="JPEG", quality=75)
-        
         response = client.models.generate_content(
             model="gemini-3.6-flash",
-            contents=[
-                types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                prompt
-            ],
-            config={
-                "response_mime_type": "application/json"
-            }
+            contents=prompt,
+            config={"response_mime_type": "application/json"}
         )
         return json.loads(response.text), None
-    except TimeoutError:
-        return None, "Tempo limite esgotado. A conexão de internet móvel na obra oscilou."
     except Exception as e:
-        return None, f"Instabilidade na rede de IA: {str(e)}"
+        return None, f"Erro na análise de texto: {str(e)}"
 
 # ---------------------------------------------------------
 # Link Direto para WhatsApp
@@ -715,6 +717,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
+    # 6. Plano de Ação com Descrição Legal
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -958,6 +961,36 @@ elif aba_selecionada == "📋 Nova Vistoria":
             st.subheader(f"➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
             item_edicao = None
 
+        # NOVO: Assistente de Enquadramento por Texto ou Ditado de Voz
+        st.markdown("""
+        <div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+            <b style="color: #1E40AF;">💡 Assistente Rápido por Descrição / Voz</b><br/>
+            <span style="font-size: 0.85rem; color: #1E3A8A;">Descreva em poucas palavras o que está vendo (ou dite pelo microfone do teclado) para a IA localizar a NR:</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_t1, col_t2 = st.columns([2.5, 1])
+        with col_t1:
+            texto_relato = st.text_input(
+                "Descreva a situação encontrada:",
+                placeholder="Ex: Operários em andaime a 4m sem cinto e sem proteção de periferia",
+                key=f"texto_ia_{st.session_state.contador_fluxo}",
+                label_visibility="collapsed"
+            )
+        with col_t2:
+            if st.button("🔍 Enquadrar com IA", use_container_width=True, type="secondary"):
+                if texto_relato.strip():
+                    with st.spinner("Localizando NR correspondente..."):
+                        res_ia, err_ia = sugerir_enquadramento_por_texto(texto_relato, df_nr_base)
+                        if res_ia:
+                            st.session_state.ia_sugestao = res_ia
+                            st.toast(f"✅ Enquadrado na {res_ia.get('nr_sugerida', 'NR')}!")
+                            st.rerun()
+                        else:
+                            st.error(err_ia)
+                else:
+                    st.warning("Descreva a situação primeiro.")
+
         st.markdown("**1. Registros Fotográficos (Carimbo Forense e Otimização):**")
         col_cam, col_up = st.columns(2)
         
@@ -983,7 +1016,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
 
         with col_up:
             arquivos_up = st.file_uploader(
-                "Ou selecione da galeria:",
+                "Ou selecione da galeria / câmera nativa:",
                 type=["jpg", "jpeg", "png"],
                 accept_multiple_files=True,
                 key=f"up_{st.session_state.contador_fluxo}"
@@ -1000,21 +1033,10 @@ elif aba_selecionada == "📋 Nova Vistoria":
             for idx_f, img in enumerate(st.session_state.fotos_atuais):
                 cols_p[idx_f % 4].image(img, use_container_width=True)
 
-            col_ia, col_limpar_f = st.columns([1.5, 1])
-            with col_ia:
-                if st.button("✨ Analisar com IA (Gemini 3.6 Flash)", use_container_width=True):
-                    with st.spinner("Analisando riscos técnicos da imagem..."):
-                        resultado_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
-                        if resultado_ia:
-                            st.session_state.ia_sugestao = resultado_ia
-                            st.toast("✅ Sugestão de enquadramento aplicada!")
-                        else:
-                            st.warning(f"Atenção: {err_ia}")
-            with col_limpar_f:
-                if st.button("❌ Limpar fotos deste apontamento", use_container_width=True):
-                    st.session_state.fotos_atuais = []
-                    st.session_state.ia_sugestao = None
-                    st.rerun()
+            if st.button("❌ Limpar fotos deste apontamento", use_container_width=True):
+                st.session_state.fotos_atuais = []
+                st.session_state.ia_sugestao = None
+                st.rerun()
 
         st.markdown("**2. Situação Identificada:**")
         index_status = 0
@@ -1059,8 +1081,10 @@ elif aba_selecionada == "📋 Nova Vistoria":
             idx_nr_padrao = lista_nrs_disponiveis.index(item_edicao["nr"])
         elif st.session_state.ia_sugestao:
             nr_sug = st.session_state.ia_sugestao.get("nr_sugerida", "")
-            if nr_sug in lista_nrs_disponiveis:
-                idx_nr_padrao = lista_nrs_disponiveis.index(nr_sug)
+            for idx_n, n_item in enumerate(lista_nrs_disponiveis):
+                if nr_sug.replace(" ", "").upper() in n_item.replace(" ", "").upper():
+                    idx_nr_padrao = idx_n
+                    break
 
         nr_selecionada = st.selectbox("Selecione a NR:", lista_nrs_disponiveis, index=idx_nr_padrao, key=f"nr_sel_{st.session_state.contador_fluxo}")
 
@@ -1071,6 +1095,12 @@ elif aba_selecionada == "📋 Nova Vistoria":
         if item_edicao and item_edicao["nr"] == nr_selecionada:
             for i_idx, r in df_filtrado.iterrows():
                 if r["item"] == item_edicao["item_nr"]:
+                    idx_item_padrao = i_idx
+                    break
+        elif st.session_state.ia_sugestao:
+            item_sug = st.session_state.ia_sugestao.get("item_provavel", "")
+            for i_idx, r in df_filtrado.iterrows():
+                if item_sug and item_sug in r["item"]:
                     idx_item_padrao = i_idx
                     break
 
