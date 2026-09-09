@@ -362,12 +362,8 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     pos_y = altura - int(altura_barra * 0.65)
     draw.text((15, pos_y), texto_completo, fill=(255, 255, 255), font=fonte)
     return img
-
 # ---------------------------------------------------------
-# Auditoria com IA (Com Fallback e Tolerância a 503)
-# ---------------------------------------------------------
-# ---------------------------------------------------------
-# Auditoria com IA (Corrigido para SDK google-genai)
+# Auditoria com IA (Atualizado para gemini-3.6-flash com Retentativa)
 # ---------------------------------------------------------
 def analisar_imagem_com_ia(imagem_pil):
     api_key = None
@@ -394,17 +390,18 @@ def analisar_imagem_com_ia(imagem_pil):
         }
         """
 
+        # Otimização para reduzir o tempo de envio e resposta
         img_ia = imagem_pil.copy()
-        img_ia.thumbnail((800, 800), Image.Resampling.BILINEAR)
+        img_ia.thumbnail((600, 600), Image.Resampling.BILINEAR)
         buf = io.BytesIO()
-        img_ia.save(buf, format="JPEG", quality=75)
+        img_ia.save(buf, format="JPEG", quality=70)
 
         ultimo_erro = ""
-        # 3 tentativas automáticas em caso de sobrecarga (503/429)
+        # 3 tentativas em caso de sobrecarga 503 / 429
         for tentativa in range(3):
             try:
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.6-flash",
                     contents=[
                         types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
                         prompt
@@ -415,16 +412,16 @@ def analisar_imagem_com_ia(imagem_pil):
             except Exception as e:
                 ultimo_erro = str(e)
                 if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower() or "429" in ultimo_erro:
-                    time.sleep(1.5 * (tentativa + 1))
+                    time.sleep(2.0 * (tentativa + 1))
                     continue
                 break
 
-        return None, f"Instabilidade temporária na API: {ultimo_erro}"
+        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})"
     except Exception as e:
         return None, f"Erro no serviço de IA: {str(e)}"
 
 # ---------------------------------------------------------
-# Assistente de Enquadramento por Texto / Voz
+# Assistente de Enquadramento por Texto / Voz (gemini-3.6-flash)
 # ---------------------------------------------------------
 def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
     api_key = None
@@ -466,11 +463,11 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
         """
 
         ultimo_erro = ""
-        # 3 tentativas automáticas em caso de sobrecarga (503/429)
+        # 3 tentativas automáticas em caso de fila cheia (503 / 429)
         for tentativa in range(3):
             try:
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.6-flash",
                     contents=prompt,
                     config={"response_mime_type": "application/json"}
                 )
@@ -478,11 +475,11 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
             except Exception as e:
                 ultimo_erro = str(e)
                 if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower() or "429" in ultimo_erro:
-                    time.sleep(1.2 * (tentativa + 1))
+                    time.sleep(1.5 * (tentativa + 1))
                     continue
                 break
 
-        return None, f"Instabilidade temporária na API: {ultimo_erro}"
+        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})"
     except Exception as e:
         return None, f"Erro no enquadramento de texto: {str(e)}"
     
