@@ -20,26 +20,26 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as ReportLabImage, Table, TableStyle
+from reportlab.pdfgen import canvas
 
 # ---------------------------------------------------------
-# Configuração de Página e Estilização Mobile Premium
+# Configuração de Página e Estilização Mobile & Desktop
 # ---------------------------------------------------------
 st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layout="centered")
 
 st.markdown("""
 <style>
-    /* Ocultar elementos nativos do Streamlit */
+    /* Ocultar elementos desnecessários da barra padrão */
     #MainMenu, header, footer, [data-testid="stToolbar"] {
         visibility: hidden !important;
         display: none !important;
     }
     
-    /* Prevenção de Pull-to-Refresh e trava elástica */
+    /* Prevenção de Pull-to-Refresh */
     html, body {
         overscroll-behavior-y: none !important;
         overscroll-behavior: none !important;
         background-color: #F8FAFC !important;
-        color: #0F172A !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     }
     .stApp, div[data-testid="stAppViewContainer"] {
@@ -48,31 +48,38 @@ st.markdown("""
         background-color: #F8FAFC !important;
     }
 
-    /* Força contraste de texto (evita letras invisíveis no Dark Mode do PC) */
-    h1, h2, h3, h4, h5, h6, p, label, span, strong, b {
-        color: #0F172A !important;
-    }
-
-    /* Espaçamento superior ajustado */
+    /* Espaçamento superior */
     .block-container {
         padding-top: 1.0rem !important;
         padding-bottom: 3.5rem !important;
         max-width: 720px !important;
     }
 
-    /* Stepper Visual (Progresso da Vistoria) */
+    /* Títulos e textos de layout com cor garantida */
+    .main-title {
+        color: #0F172A !important;
+        font-weight: 800;
+        font-size: 1.45rem;
+        margin: 0;
+    }
+    .main-subtitle {
+        color: #64748B !important;
+        font-size: 0.85rem;
+    }
+
+    /* Stepper Visual */
     .stepper-container {
         display: flex;
         justify-content: space-between;
         background: #FFFFFF;
         border: 1px solid #E2E8F0;
         border-radius: 12px;
-        padding: 8px 12px;
+        padding: 8px 14px;
         margin-bottom: 14px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }
     .step-item {
-        font-size: 0.76rem;
+        font-size: 0.78rem;
         font-weight: 700;
         color: #94A3B8;
         display: flex;
@@ -123,7 +130,7 @@ st.markdown("""
         margin-top: 3px;
     }
 
-    /* Badges / Pílulas de Status e Risco */
+    /* Badges de Status */
     .badge-pill {
         display: inline-flex;
         align-items: center;
@@ -139,7 +146,7 @@ st.markdown("""
     .badge-success { background-color: #DCFCE7; color: #166534 !important; }
     .badge-info { background-color: #DBEAFE; color: #1E40AF !important; }
 
-    /* Banners e Assistente de IA */
+    /* Banners Informativos */
     .ai-assistant-card {
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%) !important;
         border: 1px solid #BFDBFE !important;
@@ -169,27 +176,6 @@ st.markdown("""
         border-bottom: 1px solid #E2E8F0;
     }
 
-    /* Miniaturas com Selo Forense */
-    .photo-thumb-box {
-        position: relative;
-        border-radius: 10px;
-        overflow: hidden;
-        border: 1px solid #E2E8F0;
-        margin-bottom: 8px;
-    }
-    .photo-forensic-tag {
-        position: absolute;
-        top: 6px;
-        left: 6px;
-        background: rgba(15, 23, 42, 0.75);
-        color: #FFFFFF !important;
-        font-size: 0.65rem;
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 4px;
-        backdrop-filter: blur(2px);
-    }
-
     /* Barra de Ações Rápidas no Rodapé */
     .quick-bar {
         background: #FFFFFF;
@@ -201,13 +187,17 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* Cabeçalho e conteúdo dos Expanders */
+    /* Estilização Segura dos Expanders */
     div[data-testid="stExpander"] {
         background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
         border-radius: 12px !important;
         box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
         margin-bottom: 8px !important;
+    }
+    div[data-testid="stExpander"] summary {
+        color: #0F172A !important;
+        font-weight: 700 !important;
     }
 
     /* Botões Touch-Friendly */
@@ -219,19 +209,11 @@ st.markdown("""
         transition: all 0.15s ease !important;
     }
 
-    /* Inputs e Caixas de Seleção */
-    div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
-        border-radius: 10px !important;
-        background-color: #FFFFFF !important;
-    }
-    div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea {
-        color: #0F172A !important;
-    }
+    /* Preservar legibilidade em inputs e selects sem quebrar o modo escuro do navegador */
     div[data-baseweb="select"] div {
         white-space: normal !important;
         word-break: break-word !important;
         line-height: 1.35 !important;
-        color: #0F172A !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -821,7 +803,6 @@ def gerar_grafico_historico_empresa(df_empresa):
 
     rotulos_datas = [f"Vistoria #{r['id']}\n({r['data']})" for _, r in df_sorted.iterrows()]
 
-    # Gráfico 1: Queda do Passivo Fiscal em Risco
     ax1.plot(range(len(df_sorted)), df_sorted["multa_max"], marker='o', color='#DC2626', linewidth=2.5, label="Multa Máx em Risco")
     ax1.fill_between(range(len(df_sorted)), df_sorted["multa_max"], color='#FEE2E2', alpha=0.5)
     ax1.set_title("Evolução do Passivo (Risco R$)", fontsize=9, fontweight='bold', pad=8)
@@ -830,7 +811,6 @@ def gerar_grafico_historico_empresa(df_empresa):
     ax1.grid(axis='y', linestyle='--', alpha=0.4)
     ax1.legend(fontsize=7.5)
 
-    # Gráfico 2: Quantidade de Itens Auditados
     ax2.bar(range(len(df_sorted)), df_sorted["total_itens"], color='#3B82F6', width=0.4)
     ax2.set_title("Total de Itens Auditados", fontsize=9, fontweight='bold', pad=8)
     ax2.set_xticks(range(len(df_sorted)))
@@ -845,11 +825,53 @@ def gerar_grafico_historico_empresa(df_empresa):
     return buf
 
 # ---------------------------------------------------------
-# Gerador de Relatório PDF Completo
+# Classe Especial de Canvas para Paginação Dinâmica
+# ---------------------------------------------------------
+class NumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_decorations(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_page_decorations(self, page_count):
+        self.saveState()
+        self.setFont("Helvetica", 8)
+        self.setFillColorHex("#64748B")
+        texto_esquerda = "Laudo Técnico de Auditoria SST & Enquadramento NR 28"
+        texto_direita = f"Página {self._pageNumber} de {page_count}"
+        
+        # Linha e rodapé
+        self.setStrokeColorHex("#CBD5E1")
+        self.setLineWidth(0.5)
+        self.line(36, 26, A4[0] - 36, 26)
+        self.drawString(36, 16, texto_esquerda)
+        self.drawRightString(A4[0] - 36, 16, texto_direita)
+        self.restoreState()
+
+# ---------------------------------------------------------
+# Gerador de Relatório PDF Completo (Design Pericial)
 # ---------------------------------------------------------
 def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=38
+    )
     styles = getSampleStyleSheet()
     elementos = []
 
@@ -865,9 +887,9 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     cell_td_total = ParagraphStyle('CellTDTotal', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8, textColor=colors.HexColor('#0F172A'), alignment=1, leading=10)
 
     texto_cabecalho = [
-        Paragraph("Relatório Técnico de Vistoria, Riscos e Conformidades SST (NR 28)", titulo_style),
+        Paragraph("Relatório Pericial de Vistoria, Riscos e Conformidades SST", titulo_style),
         Spacer(1, 4),
-        Paragraph(f"<b>Data da Inspeção:</b> {dados_gerais['data']} | <b>Responsável Técnico:</b> {dados_gerais['inspetor']}", sub_style)
+        Paragraph(f"<b>Emissão Forense:</b> {dados_gerais['data']} | <b>Responsável Técnico:</b> {dados_gerais['inspetor']}", sub_style)
     ]
 
     if logo_pil is not None:
@@ -898,10 +920,10 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     qtd_conf = sum(1 for e in lista_evidencias if e['status'] == "Conformidade")
 
     info_cabecalho = [
-        [Paragraph("Empresa Atendida (Cliente):", cell_label), Paragraph(dados_gerais['empresa_cliente'], cell_value)],
+        [Paragraph("Empresa Auditada:", cell_label), Paragraph(dados_gerais['empresa_cliente'], cell_value)],
         [Paragraph("Faixa de Funcionários:", cell_label), Paragraph(dados_gerais['faixa_func'], cell_value)],
-        [Paragraph("Quadro de Apontamentos:", cell_label), Paragraph(f"<b>{qtd_nc}</b> Não Conformidade(s)  |  <b>{qtd_conf}</b> Boa(s) Prática(s) / Conformidade(s)", cell_value)],
-        [Paragraph("Passivo Fiscal em Risco (Multas):", cell_label), Paragraph(f"<font color='#B91C1C'><b>{formata_brl(total_multa_min)} a {formata_brl(total_multa_max)}</b></font>", cell_value)],
+        [Paragraph("Quadro de Constatações:", cell_label), Paragraph(f"<b>{qtd_nc}</b> Não Conformidade(s)  |  <b>{qtd_conf}</b> Boa(s) Prática(s)", cell_value)],
+        [Paragraph("Passivo em Risco (Multas NR 28):", cell_label), Paragraph(f"<font color='#B91C1C'><b>{formata_brl(total_multa_min)} a {formata_brl(total_multa_max)}</b></font>", cell_value)],
         [Paragraph("Economia Gerada (Risco Evitado):", cell_label), Paragraph(f"<font color='#047857'><b>{formata_brl(total_econ_min)} a {formata_brl(total_econ_max)}</b></font>", cell_value)]
     ]
     t_info = Table(info_cabecalho, colWidths=[180, 343])
@@ -1095,7 +1117,27 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     else:
         elementos.append(Paragraph("<font color='#059669'><b>Parabéns! Não foram identificadas não conformidades nesta vistoria. Nenhum plano de ação corretivo necessário.</b></font>", cell_value))
 
-    doc.build(elementos)
+    # 7. Termo de Encerramento e Assinaturas Periciais
+    elementos.append(Spacer(1, 24))
+    elementos.append(Paragraph("<b>7. Termo de Ciência e Notificação Pericial</b>", styles['Heading3']))
+    elementos.append(Paragraph("<i>As partes declaram ciência dos fatos registrados neste relatório técnico e comprometem-se a cumprir os prazos e ações estabelecidos no Plano de Ação:</i>", sub_style))
+    elementos.append(Spacer(1, 16))
+
+    dados_assinaturas = [
+        [
+            Paragraph("____________________________________________<br/><b>Responsável Técnico / Auditor SST</b><br/>Registro Profissional: ___________________", cell_td_center),
+            Paragraph("____________________________________________<br/><b>Representante da Empresa / Obra</b><br/>Cargo / Função: ___________________", cell_td_center)
+        ]
+    ]
+    t_ass = Table(dados_assinaturas, colWidths=[261, 262])
+    t_ass.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elementos.append(t_ass)
+
+    doc.build(elementos, canvasmaker=NumberedCanvas)
     buffer.seek(0)
     return buffer
 
@@ -1156,7 +1198,10 @@ with st.sidebar:
 # ABA 1: PAINEL DE ADMINISTRAÇÃO & DASHBOARD POR EMPRESA
 # =========================================================
 if aba_selecionada == "⚙️ Painel de Administração":
-    st.title("⚙️ Painel do Administrador")
+    st.markdown('<h2 class="main-title">Painel Administrativo</h2>', unsafe_allow_html=True)
+    st.markdown('<span class="main-subtitle">Gestão de acessos e inteligência de dados</span>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
     tab_usuarios, tab_relatorios, tab_dashboard = st.tabs(["👥 Usuários", "📂 Histórico de Laudos", "📈 Dashboard por Empresa"])
 
     with tab_usuarios:
@@ -1288,7 +1333,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
     if "abrir_camera" not in st.session_state:
         st.session_state.abrir_camera = False
 
-    # Recuperação de rascunho
     rascunho_existente = carregar_rascunho_db(st.session_state.usuario_logado)
     if rascunho_existente and not st.session_state.evidencias:
         st.markdown(f"""
@@ -1308,7 +1352,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 limpar_rascunho_db(st.session_state.usuario_logado)
                 st.rerun()
 
-    # Indicador de Progresso Visual (Stepper)
     passo_1_cls = "step-active" if not st.session_state.evidencias else ""
     passo_2_cls = "step-active" if st.session_state.modo_adicionar else ""
     passo_3_cls = "step-active" if (st.session_state.evidencias and not st.session_state.modo_adicionar) else ""
@@ -1321,7 +1364,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
     </div>
     """, unsafe_allow_html=True)
 
-    # 1. Dados da Obra / Empresa
     with st.expander("🏢 Dados da Obra & Equipe", expanded=False):
         col1, col2 = st.columns(2)
         with col1:
@@ -1337,7 +1379,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         inspetor = f"{st.session_state.usuario_logado.capitalize()} (SST)"
         faixa_func = list(TABELA_MULTAS_SEGURANCA.keys())[2]
 
-    # 2. Placar Financeiro em Cartões Flutuantes (KPIs)
     tot_multa_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
     tot_multa_max = sum(e['valor_max'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
     tot_econ_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Conformidade")
@@ -1358,7 +1399,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. Formulário de Apontamento
     if st.session_state.modo_adicionar or st.session_state.editando_indice is not None:
         idx_edicao = st.session_state.editando_indice
         
@@ -1371,7 +1411,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
             st.markdown(f"#### ➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
             item_edicao = None
 
-        # Assistente de Enquadramento
         if not st.session_state.modo_offline:
             st.markdown("""
             <div class="ai-assistant-card">
@@ -1451,13 +1490,7 @@ elif aba_selecionada == "📋 Vistoria em Campo":
             st.write(f"Fotos anexadas ({len(st.session_state.fotos_atuais)}):")
             cols_p = st.columns(min(len(st.session_state.fotos_atuais), 4))
             for idx_f, img in enumerate(st.session_state.fotos_atuais):
-                with cols_p[idx_f % 4]:
-                    st.markdown("""
-                    <div class="photo-thumb-box">
-                        <div class="photo-forensic-tag">📍 GPS FORENSE</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    st.image(img, use_container_width=True)
+                cols_p[idx_f % 4].image(img, use_container_width=True)
 
             col_ia, col_limp = st.columns([1.5, 1])
             with col_ia:
@@ -1629,7 +1662,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 st.session_state.modo_adicionar = False
                 st.session_state.editando_indice = None
 
-    # 4. Feed de Apontamentos Gravados com Badges
     if st.session_state.evidencias:
         st.markdown(f"#### 📑 Apontamentos Registrados ({len(st.session_state.evidencias)})")
         for idx, ev in enumerate(st.session_state.evidencias):
@@ -1659,7 +1691,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                         salvar_rascunho_db(st.session_state.usuario_logado, empresa_cliente, inspetor, faixa_func, st.session_state.evidencias)
                         st.rerun()
 
-        # 5. Compartilhamento via WhatsApp
         ncs_atuais = [e for e in st.session_state.evidencias if e['status'] == "Não Conformidade"]
         st.markdown("#### 📲 Envio Imediato por WhatsApp")
         c_w1, c_w2 = st.columns([2, 1.2])
@@ -1670,7 +1701,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 link_wpp = gerar_link_whatsapp(tel_wpp, empresa_cliente, tot_multa_max, tot_econ_max, len(ncs_atuais))
                 st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25D366;color:white;border:none;height:48px;border-radius:10px;font-weight:700;width:100%;cursor:pointer;">💬 Enviar</button></a>', unsafe_allow_html=True)
 
-        # 6. Emissão do Relatório PDF Final
         st.markdown("#### 📄 Laudo Técnico com Plano de Ação")
         data_hoje = datetime.date.today().strftime("%d/%m/%Y")
         dados_relatorio = {
