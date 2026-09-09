@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from streamlit_js_eval import get_geolocation
 from google import genai
 from google.genai import types
+from groq import Groq
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -362,8 +363,9 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     pos_y = altura - int(altura_barra * 0.65)
     draw.text((15, pos_y), texto_completo, fill=(255, 255, 255), font=fonte)
     return img
+
 # ---------------------------------------------------------
-# Auditoria com IA (Atualizado para gemini-3.6-flash com Retentativa)
+# Auditoria com IA via Foto (Gemini com Retentativa)
 # ---------------------------------------------------------
 def analisar_imagem_com_ia(imagem_pil):
     api_key = None
@@ -390,14 +392,12 @@ def analisar_imagem_com_ia(imagem_pil):
         }
         """
 
-        # Otimização para reduzir o tempo de envio e resposta
         img_ia = imagem_pil.copy()
         img_ia.thumbnail((600, 600), Image.Resampling.BILINEAR)
         buf = io.BytesIO()
         img_ia.save(buf, format="JPEG", quality=70)
 
         ultimo_erro = ""
-        # 3 tentativas em caso de sobrecarga 503 / 429
         for tentativa in range(3):
             try:
                 response = client.models.generate_content(
@@ -412,77 +412,97 @@ def analisar_imagem_com_ia(imagem_pil):
             except Exception as e:
                 ultimo_erro = str(e)
                 if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower() or "429" in ultimo_erro:
-                    time.sleep(2.0 * (tentativa + 1))
+                    time.sleep(1.8 * (tentativa + 1))
                     continue
                 break
 
         return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})"
     except Exception as e:
-        return None, f"Erro no serviço de IA: {str(e)}"
+        return None, f"Instabilidade na rede de IA: {str(e)}"
 
 # ---------------------------------------------------------
-# Assistente de Enquadramento por Texto / Voz (gemini-3.6-flash)
+# Assistente de Enquadramento Ultra-Rápido por Texto/Voz (Groq / Llama 3.3)
 # ---------------------------------------------------------
 def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
-    api_key = None
+    groq_key = None
+    if hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
+        groq_key = st.secrets["GROQ_API_KEY"]
+    elif "GROQ_API_KEY" in os.environ:
+        groq_key = os.environ["GROQ_API_KEY"]
+
+    nrs_disponiveis = sorted(df_base_nrs["nr"].unique())
+
+    # 1. Rota Ultra-Rápida: GROQ (Llama 3.3 70B - Resposta em ~0.4s)
+    if groq_key:
+        try:
+            client = Groq(api_key=groq_key)
+            prompt_sistema = f"""
+            Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
+            Normas cadastradas no sistema: {', '.join(nrs_disponiveis)}.
+            Analise o relato e devolva ESTRITAMENTE um JSON:
+            {{
+                "status": "Não Conformidade" ou "Conformidade",
+                "nr_sugerida": "Ex: NR 35",
+                "item_provavel": "Ex: 35.2.1",
+                "descricao_cenario": "Resumo técnico formal do fato",
+                "acao_corretiva": "Medida técnica recomendada",
+                "prioridade": "Alta", "Média" ou "Baixa"
+            }}
+            """
+
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": prompt_sistema},
+                    {"role": "user", "content": f"Ocorrência relatada: {descricao_problema}"}
+                ],
+                model="llama-3.3-70b-versatile",
+                response_format={"type": "json_object"},
+                temperature=0.1,
+            )
+            return json.loads(chat_completion.choices[0].message.content), None
+        except Exception as e:
+            pass  # Se a Groq falhar, recorre ao Gemini automaticamente
+
+    # 2. Fallback Automático: Gemini 3.6 Flash
+    gemini_key = None
     if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-        api_key = st.secrets["GEMINI_API_KEY"]
+        gemini_key = st.secrets["GEMINI_API_KEY"]
     elif "GEMINI_API_KEY" in os.environ:
-        api_key = os.environ["GEMINI_API_KEY"]
+        gemini_key = os.environ["GEMINI_API_KEY"]
 
-    if not api_key:
-        return None, "Chave GEMINI_API_KEY não configurada nos Secrets do Streamlit."
-
-    try:
-        client = genai.Client(api_key=api_key)
-        nrs_disponiveis = sorted(df_base_nrs["nr"].unique())
-
-        prompt = f"""
-        Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
-        
-        O inspetor em campo relatou a seguinte ocorrência:
-        "{descricao_problema}"
-
-        Com base exclusivamente na legislação brasileira de SST e preferencialmente nas normas cadastradas ({', '.join(nrs_disponiveis)}):
-        1. Identifique se representa "Não Conformidade" ou "Conformidade".
-        2. Indique a NR mais adequada (ex: "NR 35", "NR 10", "NR 12", "NR 06", etc.).
-        3. Indique o item provável da norma.
-        4. Descreva de forma técnica e formal o cenário.
-        5. Formule a ação corretiva imediata.
-        6. Determine a prioridade (Alta, Média ou Baixa).
-
-        Responda ESTRITAMENTE em formato JSON:
-        {{
-            "status": "Não Conformidade" ou "Conformidade",
-            "nr_sugerida": "Ex: NR 35",
-            "item_provavel": "Ex: 35.2.1",
-            "descricao_cenario": "Resumo técnico objetivo do fato",
-            "acao_corretiva": "Medida técnica recomendada",
-            "prioridade": "Alta", "Média" ou "Baixa"
-        }}
-        """
-
-        ultimo_erro = ""
-        # 3 tentativas automáticas em caso de fila cheia (503 / 429)
-        for tentativa in range(3):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=prompt,
-                    config={"response_mime_type": "application/json"}
-                )
-                return json.loads(response.text), None
-            except Exception as e:
-                ultimo_erro = str(e)
-                if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower() or "429" in ultimo_erro:
-                    time.sleep(1.5 * (tentativa + 1))
+    if gemini_key:
+        try:
+            client = genai.Client(api_key=gemini_key)
+            prompt = f"""
+            Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
+            Ocorrência: "{descricao_problema}"
+            Normas disponíveis: {', '.join(nrs_disponiveis)}.
+            Responda ESTRITAMENTE em formato JSON:
+            {{
+                "status": "Não Conformidade" ou "Conformidade",
+                "nr_sugerida": "Ex: NR 35",
+                "item_provavel": "Ex: 35.2.1",
+                "descricao_cenario": "Resumo técnico objetivo",
+                "acao_corretiva": "Medida técnica recomendada",
+                "prioridade": "Alta", "Média" ou "Baixa"
+            }}
+            """
+            for tentativa in range(2):
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-3.6-flash",
+                        contents=prompt,
+                        config={"response_mime_type": "application/json"}
+                    )
+                    return json.loads(response.text), None
+                except Exception:
+                    time.sleep(1.2)
                     continue
-                break
+        except Exception as e:
+            return None, f"Erro no enquadramento: {str(e)}"
 
-        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})"
-    except Exception as e:
-        return None, f"Erro no enquadramento de texto: {str(e)}"
-    
+    return None, "Nenhuma chave de IA (GROQ_API_KEY ou GEMINI_API_KEY) configurada nos Secrets."
+
 # ---------------------------------------------------------
 # Link Direto para WhatsApp
 # ---------------------------------------------------------
@@ -1045,8 +1065,8 @@ elif aba_selecionada == "📋 Nova Vistoria":
         # Assistente de Enquadramento por Texto ou Ditado de Voz
         st.markdown("""
         <div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-            <b style="color: #1E40AF;">💡 Assistente Rápido por Descrição / Voz</b><br/>
-            <span style="font-size: 0.85rem; color: #1E3A8A;">Descreva em poucas palavras o que está vendo (ou dite pelo microfone do teclado) para a IA localizar a NR:</span>
+            <b style="color: #1E40AF;">💡 Assistente Rápido por Descrição / Voz (Groq Turbo)</b><br/>
+            <span style="font-size: 0.85rem; color: #1E3A8A;">Descreva em poucas palavras o que está vendo (ou dite pelo microfone do teclado) para enquadramento instantâneo da NR:</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1059,9 +1079,9 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 label_visibility="collapsed"
             )
         with col_t2:
-            if st.button("🔍 Enquadrar com IA", use_container_width=True, type="secondary"):
+            if st.button("⚡ Enquadrar Instantâneo", use_container_width=True, type="secondary"):
                 if texto_relato.strip():
-                    with st.spinner("Localizando NR correspondente..."):
+                    with st.spinner("Enquadrando com Groq..."):
                         res_ia, err_ia = sugerir_enquadramento_por_texto(texto_relato, df_nr_base)
                         if res_ia:
                             st.session_state.ia_sugestao = res_ia
@@ -1116,7 +1136,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
 
             col_ia, col_limpar_f = st.columns([1.5, 1])
             with col_ia:
-                if st.button("✨ Analisar Foto com IA", use_container_width=True):
+                if st.button("✨ Analisar Foto com IA (Gemini)", use_container_width=True):
                     with st.spinner("Analisando riscos técnicos da imagem..."):
                         resultado_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
                         if resultado_ia:
