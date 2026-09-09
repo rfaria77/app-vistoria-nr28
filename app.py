@@ -828,7 +828,7 @@ def gerar_grafico_historico_empresa(df_empresa):
     return buf
 
 # ---------------------------------------------------------
-# Classe Especial de Canvas para Paginação Dinâmica
+# Classe Especial de Canvas para Paginação Dinâmica (Corrigida)
 # ---------------------------------------------------------
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -850,11 +850,11 @@ class NumberedCanvas(canvas.Canvas):
     def draw_page_decorations(self, page_count):
         self.saveState()
         self.setFont("Helvetica", 8)
-        self.setFillColorHex("#64748B")
+        self.setFillColor(colors.HexColor("#64748B"))
         texto_esquerda = "Laudo Técnico de Auditoria SST & Enquadramento NR 28"
         texto_direita = f"Página {self._pageNumber} de {page_count}"
         
-        self.setStrokeColorHex("#CBD5E1")
+        self.setStrokeColor(colors.HexColor("#CBD5E1"))
         self.setLineWidth(0.5)
         self.line(36, 26, A4[0] - 36, 26)
         self.drawString(36, 16, texto_esquerda)
@@ -1380,7 +1380,6 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         inspetor = f"{st.session_state.usuario_logado.capitalize()} (SST)"
         faixa_func = list(TABELA_MULTAS_SEGURANCA.keys())[2]
 
-    # BOTÃO DE SINCRONIZAÇÃO EM LOTE
     if st.session_state.evidencias:
         if st.session_state.modo_offline:
             st.info("📴 Você está no Modo Campo (Offline). Quando retornar a um local com sinal, desative o modo offline no menu lateral para sincronizar e reavaliar seus apontamentos com a IA.")
