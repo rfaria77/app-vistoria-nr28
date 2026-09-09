@@ -20,12 +20,23 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as ReportLabImage, Table, TableStyle
 
 # ---------------------------------------------------------
-# Configuração da Página e CSS de Quebra de Linha
+# Configuração da Página e CSS (Sem Pull-to-Refresh)
 # ---------------------------------------------------------
 st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layout="centered")
 
 st.markdown("""
 <style>
+    /* DESATIVA O PULL-TO-REFRESH (DESLIZAR PARA BAIXO E ZERAR) */
+    html, body {
+        overscroll-behavior-y: none !important;
+        overscroll-behavior: none !important;
+    }
+    .stApp, div[data-testid="stAppViewContainer"] {
+        overscroll-behavior-y: contain !important;
+        overscroll-behavior: contain !important;
+    }
+
+    /* Força quebra de linha nas caixas de seleção em telas móveis */
     div[data-baseweb="select"] div {
         white-space: normal !important;
         word-break: break-word !important;
@@ -654,12 +665,14 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
 
         elementos.append(Spacer(1, 10))
 
+    # 4. Análise Gráfica
     elementos.append(Paragraph("<b>4. Análise Gráfica: Riscos de Multas vs Economia Gerada</b>", styles['Heading3']))
     elementos.append(Spacer(1, 6))
     grafico_buf = gerar_grafico_multas(lista_evidencias)
     elementos.append(ReportLabImage(grafico_buf, width=490, height=220))
     elementos.append(Spacer(1, 14))
 
+    # 5. Balanço Financeiro Consolidado
     elementos.append(Paragraph("<b>5. Balanço Financeiro das Multas e Economia (NR 28)</b>", styles['Heading3']))
     elementos.append(Spacer(1, 6))
 
@@ -961,7 +974,7 @@ elif aba_selecionada == "📋 Nova Vistoria":
             st.subheader(f"➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
             item_edicao = None
 
-        # NOVO: Assistente de Enquadramento por Texto ou Ditado de Voz
+        # Assistente de Enquadramento por Texto ou Ditado de Voz
         st.markdown("""
         <div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
             <b style="color: #1E40AF;">💡 Assistente Rápido por Descrição / Voz</b><br/>
