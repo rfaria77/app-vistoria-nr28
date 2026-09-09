@@ -22,48 +22,133 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as ReportLabImage, Table, TableStyle
 
 # ---------------------------------------------------------
-# Configuração da Página e CSS (Sem Pull-to-Refresh)
+# Configuração de Página e Estilização Mobile Premium
 # ---------------------------------------------------------
 st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layout="centered")
 
 st.markdown("""
 <style>
-    /* DESATIVA O PULL-TO-REFRESH (DESLIZAR PARA BAIXO E RECARREGAR) */
+    /* Ocultar elementos padrão do Streamlit para aspecto nativo */
+    #MainMenu, header, footer, [data-testid="stToolbar"] {
+        visibility: hidden !important;
+        display: none !important;
+    }
+    
+    /* Prevenção de Pull-to-Refresh e trava elástica */
     html, body {
         overscroll-behavior-y: none !important;
         overscroll-behavior: none !important;
+        background-color: #F8FAFC !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     }
     .stApp, div[data-testid="stAppViewContainer"] {
         overscroll-behavior-y: contain !important;
         overscroll-behavior: contain !important;
+        background-color: #F8FAFC !important;
     }
 
-    /* Força quebra de linha nas caixas de seleção em telas móveis */
+    /* Espaçamento superior ajustado */
+    .block-container {
+        padding-top: 1.2rem !important;
+        padding-bottom: 3.5rem !important;
+        max-width: 680px !important;
+    }
+
+    /* Cards de KPI Financeiro */
+    .kpi-container {
+        display: flex;
+        gap: 12px;
+        margin-top: 10px;
+        margin-bottom: 16px;
+    }
+    .kpi-card {
+        flex: 1;
+        background: #FFFFFF;
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        border: 1px solid #E2E8F0;
+        transition: transform 0.15s ease;
+    }
+    .kpi-card-danger {
+        border-top: 4px solid #EF4444;
+    }
+    .kpi-card-success {
+        border-top: 4px solid #10B981;
+    }
+    .kpi-title {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748B;
+        margin-bottom: 4px;
+    }
+    .kpi-value {
+        font-size: 1.22rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+    .kpi-value-danger { color: #DC2626; }
+    .kpi-value-success { color: #059669; }
+    .kpi-sub {
+        font-size: 0.72rem;
+        color: #94A3B8;
+        margin-top: 4px;
+    }
+
+    /* Banner Assistente de IA */
+    .ai-assistant-card {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 1px solid #BFDBFE;
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
+    }
+
+    /* Cartões de Enquadramento Legal */
+    .norma-card {
+        background-color: #FFFFFF;
+        border-left: 5px solid #2563EB;
+        padding: 14px 16px;
+        border-radius: 10px;
+        margin-top: 10px;
+        margin-bottom: 14px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        border-top: 1px solid #F1F5F9;
+        border-right: 1px solid #F1F5F9;
+        border-bottom: 1px solid #F1F5F9;
+    }
+
+    /* Botões Touch-Friendly (Grandes e Ergonômicos) */
+    .stButton > button {
+        border-radius: 10px !important;
+        min-height: 48px !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+    }
+    .stButton > button:active {
+        transform: scale(0.98) !important;
+    }
+
+    /* Inputs e Caixas de Seleção */
+    div[data-baseweb="input"], div[data-baseweb="select"] {
+        border-radius: 10px !important;
+    }
     div[data-baseweb="select"] div {
         white-space: normal !important;
         word-break: break-word !important;
-        height: auto !important;
         line-height: 1.35 !important;
     }
     div[data-baseweb="popover"] ul,
-    div[data-baseweb="popover"] li,
-    div[data-baseweb="popover"] div {
+    div[data-baseweb="popover"] li {
         white-space: normal !important;
         word-break: break-word !important;
-        height: auto !important;
-        min-height: 44px !important;
-        padding-top: 6px !important;
-        padding-bottom: 6px !important;
+        min-height: 46px !important;
         line-height: 1.4 !important;
-    }
-    .norma-card {
-        background-color: #f8fafc;
-        border-left: 5px solid #2563eb;
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-top: 8px;
-        margin-bottom: 12px;
-        word-wrap: break-word;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -313,15 +398,20 @@ def verificar_login():
         return True
 
     st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 4, 1])
     with col2:
-        st.markdown("### 🔒 Acesso Restrito - Vistoria SST")
-        st.caption("Entre com suas credenciais de fiscalização")
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="font-size: 2.5rem; margin-bottom: 8px;">🛡️</div>
+            <h2 style="margin: 0; color: #0F172A; font-weight: 800;">Vistoria SST</h2>
+            <p style="color: #64748B; font-size: 0.88rem; margin-top: 4px;">Auditoria e Gestão de Riscos NR 28</p>
+        </div>
+        """, unsafe_allow_html=True)
         with st.form("form_login"):
             usuario_in = st.text_input("Usuário:").strip()
             senha_in = st.text_input("Senha:", type="password").strip()
-            lembrar = st.checkbox("Manter conectado neste dispositivo (7 dias)", value=True)
-            entrar = st.form_submit_button("Entrar no Sistema", type="primary", use_container_width=True)
+            lembrar = st.checkbox("Manter conectado (7 dias)", value=True)
+            entrar = st.form_submit_button("Acessar Painel", type="primary", use_container_width=True)
             if entrar:
                 user_data = autenticar_usuario(usuario_in, senha_in)
                 if user_data:
@@ -331,10 +421,10 @@ def verificar_login():
                     if lembrar:
                         token_novo = criar_sessao(user_data[0], user_data[1])
                         st.query_params["session"] = token_novo
-                    st.success("Autenticado com sucesso!")
+                    st.success("Autenticado!")
                     st.rerun()
                 else:
-                    st.error("❌ Usuário ou senha inválidos.")
+                    st.error("Credenciais inválidas.")
     return False
 
 # ---------------------------------------------------------
@@ -365,7 +455,7 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     return img
 
 # ---------------------------------------------------------
-# Auditoria com IA via Foto (Gemini com Retentativa)
+# Auditoria de Foto com Gemini
 # ---------------------------------------------------------
 def analisar_imagem_com_ia(imagem_pil):
     api_key = None
@@ -375,7 +465,7 @@ def analisar_imagem_com_ia(imagem_pil):
         api_key = os.environ["GEMINI_API_KEY"]
 
     if not api_key:
-        return None, "Chave GEMINI_API_KEY não configurada nos Secrets do Streamlit."
+        return None, "Chave GEMINI_API_KEY não configurada nos Secrets."
 
     try:
         client = genai.Client(api_key=api_key)
@@ -416,12 +506,12 @@ def analisar_imagem_com_ia(imagem_pil):
                     continue
                 break
 
-        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})"
+        return None, f"Servidores em alta demanda ({ultimo_erro})"
     except Exception as e:
-        return None, f"Instabilidade na rede de IA: {str(e)}"
+        return None, f"Instabilidade na rede: {str(e)}"
 
 # ---------------------------------------------------------
-# Assistente de Enquadramento Ultra-Rápido por Texto/Voz (Groq / Llama 3.3)
+# Assistente Rápido por Texto/Voz (Groq Turbo com Fallback)
 # ---------------------------------------------------------
 def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
     groq_key = None
@@ -432,38 +522,37 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
 
     nrs_disponiveis = sorted(df_base_nrs["nr"].unique())
 
-    # 1. Rota Ultra-Rápida: GROQ (Llama 3.3 70B - Resposta em ~0.4s)
+    # Rota Groq (Llama 3.3 70B)
     if groq_key:
         try:
             client = Groq(api_key=groq_key)
             prompt_sistema = f"""
             Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
-            Normas cadastradas no sistema: {', '.join(nrs_disponiveis)}.
-            Analise o relato e devolva ESTRITAMENTE um JSON:
+            Normas cadastradas: {', '.join(nrs_disponiveis)}.
+            Analise a ocorrência e devolva ESTRITAMENTE um JSON:
             {{
                 "status": "Não Conformidade" ou "Conformidade",
                 "nr_sugerida": "Ex: NR 35",
                 "item_provavel": "Ex: 35.2.1",
-                "descricao_cenario": "Resumo técnico formal do fato",
+                "descricao_cenario": "Resumo técnico objetivo do fato",
                 "acao_corretiva": "Medida técnica recomendada",
                 "prioridade": "Alta", "Média" ou "Baixa"
             }}
             """
-
             chat_completion = client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": prompt_sistema},
-                    {"role": "user", "content": f"Ocorrência relatada: {descricao_problema}"}
+                    {"role": "user", "content": f"Ocorrência: {descricao_problema}"}
                 ],
                 model="llama-3.3-70b-versatile",
                 response_format={"type": "json_object"},
                 temperature=0.1,
             )
             return json.loads(chat_completion.choices[0].message.content), None
-        except Exception as e:
-            pass  # Se a Groq falhar, recorre ao Gemini automaticamente
+        except Exception:
+            pass
 
-    # 2. Fallback Automático: Gemini 3.6 Flash
+    # Fallback para Gemini
     gemini_key = None
     if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
         gemini_key = st.secrets["GEMINI_API_KEY"]
@@ -474,34 +563,32 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
         try:
             client = genai.Client(api_key=gemini_key)
             prompt = f"""
-            Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
-            Ocorrência: "{descricao_problema}"
-            Normas disponíveis: {', '.join(nrs_disponiveis)}.
-            Responda ESTRITAMENTE em formato JSON:
+            Especialista em SST Brasil. Relato: "{descricao_problema}".
+            Normas: {', '.join(nrs_disponiveis)}. Formato JSON:
             {{
                 "status": "Não Conformidade" ou "Conformidade",
                 "nr_sugerida": "Ex: NR 35",
                 "item_provavel": "Ex: 35.2.1",
-                "descricao_cenario": "Resumo técnico objetivo",
-                "acao_corretiva": "Medida técnica recomendada",
+                "descricao_cenario": "Resumo técnico",
+                "acao_corretiva": "Medida corretiva",
                 "prioridade": "Alta", "Média" ou "Baixa"
             }}
             """
-            for tentativa in range(2):
+            for _ in range(2):
                 try:
-                    response = client.models.generate_content(
+                    res = client.models.generate_content(
                         model="gemini-3.6-flash",
                         contents=prompt,
                         config={"response_mime_type": "application/json"}
                     )
-                    return json.loads(response.text), None
+                    return json.loads(res.text), None
                 except Exception:
                     time.sleep(1.2)
                     continue
         except Exception as e:
-            return None, f"Erro no enquadramento: {str(e)}"
+            return None, f"Erro: {str(e)}"
 
-    return None, "Nenhuma chave de IA (GROQ_API_KEY ou GEMINI_API_KEY) configurada nos Secrets."
+    return None, "Chave de IA não configurada."
 
 # ---------------------------------------------------------
 # Link Direto para WhatsApp
@@ -818,7 +905,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
-    # 6. Plano de Ação com Descrição Legal
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -877,13 +963,13 @@ lat_capturada = loc_atual['coords']['latitude'] if (loc_atual and 'coords' in lo
 lon_capturada = loc_atual['coords']['longitude'] if (loc_atual and 'coords' in loc_atual) else None
 
 with st.sidebar:
-    st.markdown(f"👤 Usuário: **{st.session_state.usuario_logado}** (`{st.session_state.perfil_logado}`)")
+    st.markdown(f"👤 **{st.session_state.usuario_logado}** (`{st.session_state.perfil_logado}`)")
     if lat_capturada and lon_capturada:
         st.caption(f"📍 GPS Ativo: `{lat_capturada:.4f}, {lon_capturada:.4f}`")
     else:
-        st.caption("📍 GPS: Aguardando permissão...")
+        st.caption("📍 GPS: Aguardando sinal...")
 
-    if st.button("🚪 Sair (Logout)", use_container_width=True):
+    if st.button("🚪 Encerrar Sessão", use_container_width=True):
         token_atual = st.query_params.get("session")
         if token_atual:
             revogar_token_sessao(token_atual)
@@ -894,76 +980,66 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    opcoes_menu = ["📋 Nova Vistoria"]
+    opcoes_menu = ["📋 Vistoria em Campo"]
     if st.session_state.perfil_logado == "Admin":
         opcoes_menu.append("⚙️ Painel de Administração")
     
-    aba_selecionada = st.radio("Menu de Navegação:", opcoes_menu)
+    aba_selecionada = st.radio("Navegação:", opcoes_menu)
 
     st.markdown("---")
-    st.subheader("🏢 Logomarca do Laudo")
-    logo_upload = st.file_uploader("Subir Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
+    st.subheader("Logomarca do Laudo")
+    logo_upload = st.file_uploader("Upload (PNG/JPG):", type=["png", "jpg", "jpeg"])
     logo_para_relatorio = None
     if logo_upload:
         logo_para_relatorio = Image.open(logo_upload)
-        st.image(logo_para_relatorio, caption="Pré-visualização", width=140)
+        st.image(logo_para_relatorio, caption="Logo Ativa", width=140)
     elif os.path.exists("logo.png"):
         logo_para_relatorio = Image.open("logo.png")
-        st.image(logo_para_relatorio, caption="Logo padrão (logo.png)", width=140)
+        st.image(logo_para_relatorio, caption="Logo padrão", width=140)
 
 # =========================================================
 # ABA 1: PAINEL DE ADMINISTRAÇÃO
 # =========================================================
 if aba_selecionada == "⚙️ Painel de Administração":
-    st.title("⚙️ Painel de Administração do Sistema")
-    st.write("Gerencie os usuários e acesse o histórico completo de vistorias.")
-
-    tab_usuarios, tab_relatorios = st.tabs(["👥 Gerenciar Usuários", "📂 Histórico de Relatórios Realizados"])
+    st.title("⚙️ Painel do Administrador")
+    tab_usuarios, tab_relatorios = st.tabs(["👥 Usuários", "📂 Histórico de Laudos"])
 
     with tab_usuarios:
-        st.subheader("Usuários Cadastrados")
         usuarios_atuais = listar_usuarios()
-        df_users = pd.DataFrame(usuarios_atuais, columns=["Nome de Usuário", "Perfil de Acesso"])
-        st.dataframe(df_users, use_container_width=True)
+        st.dataframe(pd.DataFrame(usuarios_atuais, columns=["Usuário", "Perfil"]), use_container_width=True)
 
         col_u1, col_u2 = st.columns(2)
         with col_u1:
-            st.markdown("#### ➕ Criar Novo Usuário")
             with st.form("form_novo_user"):
-                novo_nome = st.text_input("Nome de Usuário:").strip()
+                st.markdown("**Novo Inspetor/Usuário**")
+                novo_nome = st.text_input("Usuário:").strip()
                 nova_senha = st.text_input("Senha:", type="password").strip()
                 novo_perfil = st.selectbox("Perfil:", ["Inspetor", "Admin"])
-                cadastrar = st.form_submit_button("Cadastrar Usuário", type="primary")
-                if cadastrar:
-                    if novo_nome and nova_senha:
-                        sucesso, msg = criar_usuario_db(novo_nome, nova_senha, novo_perfil)
-                        if sucesso:
-                            st.success(msg)
-                            st.rerun()
-                        else:
-                            st.error(msg)
+                cadastrar = st.form_submit_button("Cadastrar", type="primary", use_container_width=True)
+                if cadastrar and novo_nome and nova_senha:
+                    sucesso, msg = criar_usuario_db(novo_nome, nova_senha, novo_perfil)
+                    if sucesso:
+                        st.success(msg)
+                        st.rerun()
                     else:
-                        st.warning("Preencha o usuário e a senha.")
+                        st.error(msg)
 
         with col_u2:
-            st.markdown("#### ❌ Excluir Usuário")
             users_para_deletar = [u[0] for u in usuarios_atuais if u[0] != st.session_state.usuario_logado]
             if users_para_deletar:
-                user_del = st.selectbox("Selecione o usuário para remover:", users_para_deletar)
-                if st.button("🗑️ Excluir Definitivamente", type="secondary"):
+                st.markdown("**Remover Usuário**")
+                user_del = st.selectbox("Selecione:", users_para_deletar)
+                if st.button("🗑️ Excluir", type="secondary", use_container_width=True):
                     excluir_usuario_db(user_del)
-                    st.success(f"Usuário '{user_del}' excluído com sucesso!")
+                    st.success("Usuário removido!")
                     st.rerun()
-            else:
-                st.info("Não há outros usuários para exclusão.")
 
     with tab_relatorios:
-        st.subheader("Histórico Completo de Vistorias Salvas")
         relatorios_salvos = listar_relatorios()
         if relatorios_salvos:
             df_rel = pd.DataFrame(
                 relatorios_salvos,
-                columns=["ID", "Data", "Empresa Cliente", "Inspetor", "Total Itens", "Multa Mín", "Multa Máx", "Economia Mín", "Economia Máx"]
+                columns=["ID", "Data", "Empresa", "Inspetor", "Itens", "Multa Mín", "Multa Máx", "Economia Mín", "Economia Máx"]
             )
             df_rel["Multa Mín"] = df_rel["Multa Mín"].apply(formata_brl)
             df_rel["Multa Máx"] = df_rel["Multa Máx"].apply(formata_brl)
@@ -971,29 +1047,25 @@ if aba_selecionada == "⚙️ Painel de Administração":
             df_rel["Economia Máx"] = df_rel["Economia Máx"].apply(formata_brl)
             st.dataframe(df_rel, use_container_width=True)
 
-            st.markdown("---")
-            st.markdown("#### 📥 Baixar Laudo Salvo")
-            opcoes_rel = {r[0]: f"ID #{r[0]} | {r[1]} - {r[2]} (Inspetor: {r[3]})" for r in relatorios_salvos}
-            id_sel = st.selectbox("Selecione a vistoria:", list(opcoes_rel.keys()), format_func=lambda x: opcoes_rel[x])
-            
+            opcoes_rel = {r[0]: f"#{r[0]} - {r[2]} ({r[1]})" for r in relatorios_salvos}
+            id_sel = st.selectbox("Download de Laudo Salvo:", list(opcoes_rel.keys()), format_func=lambda x: opcoes_rel[x])
             dados_pdf = obter_pdf_relatorio(id_sel)
             if dados_pdf:
-                pdf_bytes, emp_nome, data_vist = dados_pdf
+                pdf_bytes, emp_nome, _ = dados_pdf
                 st.download_button(
-                    label="⬇️ Baixar Este Relatório em PDF",
+                    label="⬇️ Baixar PDF",
                     data=pdf_bytes,
-                    file_name=f"Relatorio_{id_sel}_{emp_nome.replace(' ', '_')}.pdf",
+                    file_name=f"Laudo_{id_sel}_{emp_nome.replace(' ', '_')}.pdf",
                     mime="application/pdf",
-                    key=f"btn_rel_{id_sel}",
                     use_container_width=True
                 )
         else:
-            st.info("Nenhum relatório foi salvo até o momento.")
+            st.info("Nenhum laudo salvo.")
 
 # =========================================================
-# ABA 2: NOVA VISTORIA
+# ABA 2: VISTORIA EM CAMPO (Design Mobile Nativo)
 # =========================================================
-elif aba_selecionada == "📋 Nova Vistoria":
+elif aba_selecionada == "📋 Vistoria em Campo":
     if "evidencias" not in st.session_state:
         st.session_state.evidencias = []
     if "modo_adicionar" not in st.session_state:
@@ -1009,79 +1081,113 @@ elif aba_selecionada == "📋 Nova Vistoria":
     if "abrir_camera" not in st.session_state:
         st.session_state.abrir_camera = False
 
+    # Recuperação de rascunho em caso de fechamento acidental
     rascunho_existente = carregar_rascunho_db(st.session_state.usuario_logado)
     if rascunho_existente and not st.session_state.evidencias:
-        st.info(f"💾 **Rascunho detectado!** Foi encontrada uma vistoria em andamento de `{rascunho_existente['empresa']}` salva em {rascunho_existente['atualizado_em']}.")
-        col_rec1, col_rec2 = st.columns(2)
-        with col_rec1:
-            if st.button("🔄 Retomar Esta Vistoria em Andamento", type="primary", use_container_width=True):
+        st.markdown(f"""
+        <div style="background:#FEF3C7; border:1px solid #FCD34D; border-radius:12px; padding:12px 14px; margin-bottom:12px;">
+            <b style="color:#92400E;">💾 Vistoria pendente detectada</b><br/>
+            <span style="font-size:0.85rem; color:#78350F;">Existe um rascunho de <b>{rascunho_existente['empresa']}</b> atualizado em {rascunho_existente['atualizado_em']}.</span>
+        </div>
+        """, unsafe_allow_html=True)
+        c_ret1, c_ret2 = st.columns(2)
+        with c_ret1:
+            if st.button("🔄 Retomar Vistoria", type="primary", use_container_width=True):
                 st.session_state.evidencias = rascunho_existente["evidencias"]
                 st.session_state.modo_adicionar = False
                 st.rerun()
-        with col_rec2:
-            if st.button("🗑️ Descartar Rascunho Antigo", use_container_width=True):
+        with c_ret2:
+            if st.button("🗑️ Descartar", use_container_width=True):
                 limpar_rascunho_db(st.session_state.usuario_logado)
                 st.rerun()
 
-    st.title("📸 Vistoria SST & Gestão de Riscos NR 28")
+    # Cabeçalho Principal
+    st.markdown("""
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <div>
+            <h2 style="margin:0; font-weight:800; color:#0F172A; font-size:1.45rem;">Vistoria de Campo</h2>
+            <span style="color:#64748B; font-size:0.85rem;">Enquadramento NR 28 & Avaliação Financeira</span>
+        </div>
+        <div style="background:#EEF2F6; padding:8px 12px; border-radius:10px; font-weight:700; color:#1E293B; font-size:0.85rem;">
+            🛡️ SST Pro
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # 1. Dados Gerais da Empresa
-    with st.container():
+    # 1. Dados da Obra / Empresa
+    with st.expander("🏢 Dados da Empresa & Equipe", expanded=False):
         col1, col2 = st.columns(2)
         with col1:
             emp_padrao = rascunho_existente["empresa"] if (rascunho_existente and not st.session_state.evidencias) else "Construtora Exemplo Ltda"
-            empresa_cliente = st.text_input("🏢 Empresa Atendida (Cliente):", value=emp_padrao)
+            empresa_cliente = st.text_input("Empresa Cliente:", value=emp_padrao)
             inspetor_padrao = f"{st.session_state.usuario_logado.capitalize()} (SST)"
-            inspetor = st.text_input("👷 Inspetor Responsável:", value=inspetor_padrao)
+            inspetor = st.text_input("Responsável Técnico:", value=inspetor_padrao)
         with col2:
-            faixa_func = st.selectbox("👥 Faixa de Funcionários:", list(TABELA_MULTAS_SEGURANCA.keys()), index=2)
+            faixa_func = st.selectbox("Quadro de Funcionários:", list(TABELA_MULTAS_SEGURANCA.keys()), index=2)
+    
+    if "empresa_cliente" not in locals():
+        empresa_cliente = "Construtora Exemplo Ltda"
+        inspetor = f"{st.session_state.usuario_logado.capitalize()} (SST)"
+        faixa_func = list(TABELA_MULTAS_SEGURANCA.keys())[2]
 
-    # 2. Placar Financeiro em Tempo Real
-    st.markdown("---")
+    # 2. Placar Financeiro em Cartões Flutuantes (KPIs)
     tot_multa_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
     tot_multa_max = sum(e['valor_max'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
     tot_econ_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Conformidade")
     tot_econ_max = sum(e['valor_max'] for e in st.session_state.evidencias if e['status'] == "Conformidade")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Cliente", empresa_cliente.split()[0] if empresa_cliente else "Cliente")
-    c2.metric("⚠️ Multas em Risco (Máx)", formata_brl(tot_multa_max), delta=f"-{formata_brl(tot_multa_min)} (mín)", delta_color="inverse")
-    c3.metric("✅ Economia Gerada (Máx)", formata_brl(tot_econ_max), delta=f"+{formata_brl(tot_econ_min)} (mín)")
+    st.markdown(f"""
+    <div class="kpi-container">
+        <div class="kpi-card kpi-card-danger">
+            <div class="kpi-title">⚠️ Passivo em Risco</div>
+            <div class="kpi-value kpi-value-danger">{formata_brl(tot_multa_max)}</div>
+            <div class="kpi-sub">Mínimo: {formata_brl(tot_multa_min)}</div>
+        </div>
+        <div class="kpi-card kpi-card-success">
+            <div class="kpi-title">✅ Economia Gerada</div>
+            <div class="kpi-value kpi-value-success">{formata_brl(tot_econ_max)}</div>
+            <div class="kpi-sub">Mínimo: {formata_brl(tot_econ_min)}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # 3. Formulário de Apontamentos
+    # 3. Formulário de Apontamento
     if st.session_state.modo_adicionar or st.session_state.editando_indice is not None:
-        st.markdown("---")
         idx_edicao = st.session_state.editando_indice
         
         if idx_edicao is not None:
-            st.subheader(f"✏️ Editando Apontamento #{idx_edicao + 1}")
+            st.markdown(f"#### ✏️ Editando Apontamento #{idx_edicao + 1}")
             item_edicao = st.session_state.evidencias[idx_edicao]
             if not st.session_state.fotos_atuais and item_edicao.get("imagens"):
                 st.session_state.fotos_atuais = list(item_edicao["imagens"])
         else:
-            st.subheader(f"➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
+            st.markdown(f"#### ➕ Registrar Apontamento #{len(st.session_state.evidencias) + 1}")
             item_edicao = None
 
-        # Assistente de Enquadramento por Texto ou Ditado de Voz
+        # Assistente Rápido Groq (Voz ou Texto)
         st.markdown("""
-        <div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-            <b style="color: #1E40AF;">💡 Assistente Rápido por Descrição / Voz (Groq Turbo)</b><br/>
-            <span style="font-size: 0.85rem; color: #1E3A8A;">Descreva em poucas palavras o que está vendo (ou dite pelo microfone do teclado) para enquadramento instantâneo da NR:</span>
+        <div class="ai-assistant-card">
+            <div style="font-weight:700; color:#1E40AF; font-size:0.92rem; margin-bottom:2px;">
+                ⚡ Enquadramento Rápido (Texto ou Ditado de Voz)
+            </div>
+            <div style="font-size:0.8rem; color:#3B82F6;">
+                Dite ou digite o que foi visto na obra para localizar a norma automaticamente:
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-        col_t1, col_t2 = st.columns([2.5, 1])
+        col_t1, col_t2 = st.columns([3, 1.2])
         with col_t1:
             texto_relato = st.text_input(
-                "Descreva a situação encontrada:",
-                placeholder="Ex: Operários em andaime a 4m sem cinto e sem proteção de periferia",
+                "Descreva a ocorrência:",
+                placeholder="Ex: Trabalho a 4m sem cinto e sem linha de vida montada",
                 key=f"texto_ia_{st.session_state.contador_fluxo}",
                 label_visibility="collapsed"
             )
         with col_t2:
-            if st.button("⚡ Enquadrar Instantâneo", use_container_width=True, type="secondary"):
+            if st.button("🔍 Enquadrar", use_container_width=True, type="secondary"):
                 if texto_relato.strip():
-                    with st.spinner("Enquadrando com Groq..."):
+                    with st.spinner("Analisando..."):
                         res_ia, err_ia = sugerir_enquadramento_por_texto(texto_relato, df_nr_base)
                         if res_ia:
                             st.session_state.ia_sugestao = res_ia
@@ -1090,68 +1196,61 @@ elif aba_selecionada == "📋 Nova Vistoria":
                         else:
                             st.error(err_ia)
                 else:
-                    st.warning("Descreva a situação primeiro.")
+                    st.warning("Preencha o relato primeiro.")
 
-        st.markdown("**1. Registros Fotográficos (Carimbo Forense e Otimização):**")
+        st.markdown("**1. Evidências Fotográficas (Carimbo Forense):**")
         col_cam, col_up = st.columns(2)
-        
         with col_cam:
             if not st.session_state.abrir_camera:
                 if st.button("📷 Abrir Câmera", use_container_width=True):
                     st.session_state.abrir_camera = True
                     st.rerun()
             else:
-                foto_cam = st.camera_input("Enquadre e tire a foto:", key=f"cam_{st.session_state.contador_fluxo}")
-                col_c1, col_c2 = st.columns(2)
-                with col_c1:
-                    if foto_cam and st.button("➕ Confirmar Foto", use_container_width=True, type="primary"):
+                foto_cam = st.camera_input("Foto da evidência:", key=f"cam_{st.session_state.contador_fluxo}")
+                c_c1, c_c2 = st.columns(2)
+                with c_c1:
+                    if foto_cam and st.button("Salvar Foto", type="primary", use_container_width=True):
                         img_proc = otimizar_e_carimbar(Image.open(foto_cam), lat_capturada, lon_capturada)
                         st.session_state.fotos_atuais.append(img_proc)
                         st.session_state.abrir_camera = False
-                        st.success("Foto salva com carimbo!")
                         st.rerun()
-                with col_c2:
-                    if st.button("❌ Fechar Câmera", use_container_width=True):
+                with c_c2:
+                    if st.button("Fechar", use_container_width=True):
                         st.session_state.abrir_camera = False
                         st.rerun()
 
         with col_up:
-            arquivos_up = st.file_uploader(
-                "Ou selecione da galeria / câmera nativa:",
-                type=["jpg", "jpeg", "png"],
-                accept_multiple_files=True,
-                key=f"up_{st.session_state.contador_fluxo}"
-            )
-            if arquivos_up and st.button("➕ Confirmar fotos da galeria", use_container_width=True):
+            arquivos_up = st.file_uploader("Ou da galeria / câmera nativa:", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"up_{st.session_state.contador_fluxo}")
+            if arquivos_up and st.button("➕ Confirmar Anexos", use_container_width=True):
                 for arq in arquivos_up:
                     img_proc = otimizar_e_carimbar(Image.open(arq), lat_capturada, lon_capturada)
                     st.session_state.fotos_atuais.append(img_proc)
-                st.success(f"{len(arquivos_up)} foto(s) adicionada(s)!")
+                st.toast(f"{len(arquivos_up)} foto(s) carimbada(s)!")
 
         if st.session_state.fotos_atuais:
-            st.write(f"🖼️ Fotos anexadas ({len(st.session_state.fotos_atuais)}):")
+            st.write(f"Fotos anexadas ({len(st.session_state.fotos_atuais)}):")
             cols_p = st.columns(min(len(st.session_state.fotos_atuais), 4))
             for idx_f, img in enumerate(st.session_state.fotos_atuais):
                 cols_p[idx_f % 4].image(img, use_container_width=True)
 
-            col_ia, col_limpar_f = st.columns([1.5, 1])
+            col_ia, col_limp = st.columns([1.5, 1])
             with col_ia:
-                if st.button("✨ Analisar Foto com IA (Gemini)", use_container_width=True):
-                    with st.spinner("Analisando riscos técnicos da imagem..."):
-                        resultado_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
-                        if resultado_ia:
-                            st.session_state.ia_sugestao = resultado_ia
-                            st.toast("✅ Sugestão de enquadramento aplicada!")
+                if st.button("✨ Analisar Foto com Gemini", use_container_width=True):
+                    with st.spinner("Avaliando imagem..."):
+                        res_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
+                        if res_ia:
+                            st.session_state.ia_sugestao = res_ia
+                            st.toast("✅ Sugestão aplicada!")
                             st.rerun()
                         else:
-                            st.warning(f"Atenção: {err_ia}")
-            with col_limpar_f:
-                if st.button("❌ Limpar fotos deste apontamento", use_container_width=True):
+                            st.warning(err_ia)
+            with col_limp:
+                if st.button("❌ Limpar Fotos", use_container_width=True):
                     st.session_state.fotos_atuais = []
                     st.session_state.ia_sugestao = None
                     st.rerun()
 
-        st.markdown("**2. Situação Identificada:**")
+        st.markdown("**2. Condição do Apontamento:**")
         index_status = 0
         if item_edicao:
             index_status = 1 if item_edicao["status"] == "Conformidade" else 0
@@ -1159,13 +1258,12 @@ elif aba_selecionada == "📋 Nova Vistoria":
             index_status = 1
 
         status_selecionado = st.radio(
-            "Esta evidência representa:",
-            ["⚠️ Não Conformidade (Irregularidade / Risco de Multa)", "✅ Conformidade (Boa Prática / Economia Gerada)"],
+            "Situação constatada:",
+            ["⚠️ Não Conformidade (Passivo Fiscal / Risco)", "✅ Conformidade (Boa Prática / Economia)"],
             index=index_status,
             horizontal=True,
             key=f"status_{st.session_state.contador_fluxo}"
         )
-        
         eh_conforme = status_selecionado.startswith("✅")
         status_str = "Conformidade" if eh_conforme else "Não Conformidade"
 
@@ -1179,14 +1277,9 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 sug_p = st.session_state.ia_sugestao.get("prioridade", "Média")
                 idx_prio = 0 if sug_p == "Alta" else (2 if sug_p == "Baixa" else 1)
 
-            prioridade_selecionada = st.selectbox(
-                "🚨 Prioridade de Correção / Intervenção:",
-                ["Alta", "Média", "Baixa"],
-                index=idx_prio,
-                key=f"prio_{st.session_state.contador_fluxo}"
-            )
+            prioridade_selecionada = st.selectbox("Grau de Prioridade Técnica:", ["Alta", "Média", "Baixa"], index=idx_prio, key=f"prio_{st.session_state.contador_fluxo}")
 
-        st.markdown("**3. Enquadramento Legal da Norma:**")
+        st.markdown("**3. Seleção da Norma Regulamentadora:**")
         lista_nrs_disponiveis = sorted(df_nr_base["nr"].unique())
         
         idx_nr_padrao = 0
@@ -1200,7 +1293,6 @@ elif aba_selecionada == "📋 Nova Vistoria":
                     break
 
         nr_selecionada = st.selectbox("Selecione a NR:", lista_nrs_disponiveis, index=idx_nr_padrao, key=f"nr_sel_{st.session_state.contador_fluxo}")
-
         df_filtrado = df_nr_base[df_nr_base["nr"] == nr_selecionada].reset_index(drop=True)
         opcoes_itens = [f"Item {row['item']} — {row['descricao']}" for _, row in df_filtrado.iterrows()]
 
@@ -1217,40 +1309,28 @@ elif aba_selecionada == "📋 Nova Vistoria":
                     idx_item_padrao = i_idx
                     break
 
-        item_idx = st.selectbox(
-            "Selecione o item correspondente da norma:",
-            range(len(opcoes_itens)),
-            index=idx_item_padrao,
-            format_func=lambda x: opcoes_itens[x],
-            key=f"item_sel_{st.session_state.contador_fluxo}"
-        )
+        item_idx = st.selectbox("Item correspondente:", range(len(opcoes_itens)), index=idx_item_padrao, format_func=lambda x: opcoes_itens[x], key=f"item_sel_{st.session_state.contador_fluxo}")
         item_escolhido = df_filtrado.iloc[item_idx]
         multa_calc_min, multa_calc_max = calcular_multa(item_escolhido['infracao'], faixa_func, item_escolhido['tipo'])
 
         if eh_conforme:
             st.markdown(f"""
-            <div class="norma-card" style="border-left-color: #10B981; background-color: #F0FDF4;">
-                <b style="color: #065F46; font-size: 1.05rem;">✅ Item Conforme: {item_escolhido['nr']} (Item {item_escolhido['item']})</b><br/>
-                <p style="margin: 6px 0; color: #1F2937; line-height: 1.4;"><b>Requisito:</b> {item_escolhido['descricao']}</p>
-                <span style="font-size: 0.9rem; color: #047857;">
-                    <b>Categoria:</b> {item_escolhido['categoria']} | <b>Grau:</b> {item_escolhido['infracao']}<br/>
-                    <b>Economia Estimada:</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}
-                </span>
+            <div class="norma-card" style="border-left-color: #10B981;">
+                <b style="color: #065F46;">✅ Requisito Atendido: {item_escolhido['nr']} (Item {item_escolhido['item']})</b>
+                <p style="margin: 4px 0; color: #1E293B; font-size: 0.9rem;">{item_escolhido['descricao']}</p>
+                <span style="font-size: 0.82rem; color: #047857;"><b>Economia Gerada Estimada:</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}</span>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
-            <div class="norma-card" style="border-left-color: #EF4444; background-color: #FEF2F2;">
-                <b style="color: #991B1B; font-size: 1.05rem;">⚠️ Não Conformidade: {item_escolhido['nr']} (Item {item_escolhido['item']})</b><br/>
-                <p style="margin: 6px 0; color: #1F2937; line-height: 1.4;"><b>Infração:</b> {item_escolhido['descricao']}</p>
-                <span style="font-size: 0.9rem; color: #B91C1C;">
-                    <b>Categoria:</b> {item_escolhido['categoria']} | <b>Grau:</b> {item_escolhido['infracao']} | <b>Prioridade:</b> {prioridade_selecionada}<br/>
-                    <b>Multa Prevista (NR 28):</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}
-                </span>
+            <div class="norma-card" style="border-left-color: #EF4444;">
+                <b style="color: #991B1B;">⚠️ Não Conformidade: {item_escolhido['nr']} (Item {item_escolhido['item']})</b>
+                <p style="margin: 4px 0; color: #1E293B; font-size: 0.9rem;">{item_escolhido['descricao']}</p>
+                <span style="font-size: 0.82rem; color: #B91C1C;"><b>Multa Prevista (NR 28):</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)} | Grau {item_escolhido['infracao']}</span>
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("**4. Detalhamento e Plano de Ação:**")
+        st.markdown("**4. Plano de Ação e Laudo:**")
         if item_edicao:
             valor_padrao_cenario = item_edicao.get("descricao_cenario", "")
             valor_padrao_acao = item_edicao.get("acao_corretiva", "")
@@ -1261,23 +1341,12 @@ elif aba_selecionada == "📋 Nova Vistoria":
             valor_padrao_cenario = ""
             valor_padrao_acao = ""
 
-        desc_cenario = st.text_area(
-            "📝 Descrição Detalhada do Cenário Constatado:",
-            value=valor_padrao_cenario,
-            placeholder="Descreva o que foi visto em campo...",
-            key=f"cenario_{st.session_state.contador_fluxo}"
-        )
+        desc_cenario = st.text_area("Cenário Observado:", value=valor_padrao_cenario, placeholder="Descreva o que foi visto em campo...", key=f"cenario_{st.session_state.contador_fluxo}")
+        label_acao = "Conduta Mantida:" if eh_conforme else "Ação Corretiva Recomendada:"
+        acao_corretiva = st.text_area(label_acao, value=valor_padrao_acao, placeholder="Medidas imediatas...", key=f"acao_{st.session_state.contador_fluxo}")
 
-        label_acao = "🛡️ Conduta / Boas Práticas Mantidas:" if eh_conforme else "🛠️ Ação Corretiva Recomendada:"
-        acao_corretiva = st.text_area(
-            label_acao,
-            value=valor_padrao_acao,
-            placeholder="Medidas necessárias para regularização...",
-            key=f"acao_{st.session_state.contador_fluxo}"
-        )
-
-        texto_botao = "💾 Atualizar Apontamento" if idx_edicao is not None else "💾 Salvar Apontamento no Laudo"
-        if st.button(texto_botao, type="primary", use_container_width=True):
+        texto_btn_salvar = "💾 Atualizar Apontamento" if idx_edicao is not None else "💾 Salvar no Laudo"
+        if st.button(texto_btn_salvar, type="primary", use_container_width=True):
             novo_dado = {
                 "status": status_str,
                 "prioridade": prioridade_selecionada,
@@ -1289,17 +1358,17 @@ elif aba_selecionada == "📋 Nova Vistoria":
                 "infracao": item_escolhido['infracao'],
                 "valor_min": multa_calc_min,
                 "valor_max": multa_calc_max,
-                "descricao_cenario": desc_cenario if desc_cenario else ("Conformidade atendida com sucesso." if eh_conforme else "Não conformidade constatada em campo."),
-                "acao_corretiva": acao_corretiva if acao_corretiva else ("Manter o procedimento operacional padrão." if eh_conforme else "Regularizar conforme requisitos da norma."),
+                "descricao_cenario": desc_cenario if desc_cenario else ("Conformidade atendida." if eh_conforme else "Não conformidade constatada."),
+                "acao_corretiva": acao_corretiva if acao_corretiva else ("Manter rotina operacional." if eh_conforme else "Regularizar conforme norma."),
                 "imagens": list(st.session_state.fotos_atuais)
             }
             if idx_edicao is not None:
                 st.session_state.evidencias[idx_edicao] = novo_dado
                 st.session_state.editando_indice = None
-                st.toast("✅ Apontamento atualizado com sucesso!")
+                st.toast("✅ Apontamento atualizado!")
             else:
                 st.session_state.evidencias.append(novo_dado)
-                st.toast("✅ Apontamento salvo no laudo!")
+                st.toast("✅ Apontamento salvo!")
 
             salvar_rascunho_db(st.session_state.usuario_logado, empresa_cliente, inspetor, faixa_func, st.session_state.evidencias)
 
@@ -1311,85 +1380,58 @@ elif aba_selecionada == "📋 Nova Vistoria":
             st.rerun()
 
     else:
-        st.write("### O que deseja fazer agora?")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if st.button("➕ Adicionar Outro Apontamento", use_container_width=True):
+        c_add, c_fin = st.columns(2)
+        with c_add:
+            if st.button("➕ Novo Apontamento", use_container_width=True):
                 st.session_state.modo_adicionar = True
                 st.session_state.editando_indice = None
                 st.session_state.fotos_atuais = []
-                st.session_state.abrir_camera = False
                 st.rerun()
-        with col_b:
-            if st.button("🏁 Finalizar Vistoria e Visualizar Laudo", type="primary", use_container_width=True):
+        with c_fin:
+            if st.button("🏁 Fechar e Emitir Laudo", type="primary", use_container_width=True):
                 st.session_state.modo_adicionar = False
                 st.session_state.editando_indice = None
-                st.session_state.abrir_camera = False
 
-    # 4. Gerenciador de Apontamentos (Editar / Excluir)
+    # 4. Feed de Apontamentos Gravados
     if st.session_state.evidencias:
-        st.markdown("---")
-        st.subheader(f"📑 Apontamentos Registrados ({len(st.session_state.evidencias)})")
-        
+        st.markdown(f"#### 📑 Apontamentos Registrados ({len(st.session_state.evidencias)})")
         for idx, ev in enumerate(st.session_state.evidencias):
             eh_c = (ev["status"] == "Conformidade")
             cor_tag = "🟢" if eh_c else "🔴"
-            rot_tipo = "Boa Prática" if eh_c else f"Não Conformidade ({ev.get('prioridade', 'Média')})"
+            tag_rot = "Boa Prática" if eh_c else f"Não Conformidade ({ev.get('prioridade', 'Média')})"
 
-            with st.expander(f"{cor_tag} #{idx + 1}: {ev['nr']} (Item {ev['item_nr']}) — {rot_tipo}"):
-                st.write(f"**Norma / Descrição:** {ev['descricao']}")
-                st.write(f"**Cenário:** {ev['descricao_cenario']}")
-                st.write(f"**Ação:** {ev['acao_corretiva']}")
-                st.write(f"**Fotos anexadas:** {len(ev.get('imagens', []))}")
+            with st.expander(f"{cor_tag} #{idx + 1} — {ev['nr']} (Item {ev['item_nr']}) | {tag_rot}"):
+                st.markdown(f"**Infração / Requisito:** {ev['descricao']}")
+                st.markdown(f"**Cenário:** {ev['descricao_cenario']}")
+                st.markdown(f"**Ação:** {ev['acao_corretiva']}")
+                st.caption(f"Fotos anexadas: {len(ev.get('imagens', []))} registro(s)")
                 
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    if st.button(f"✏️ Editar Apontamento #{idx + 1}", key=f"btn_edit_{idx}", use_container_width=True):
+                c_ed, c_del = st.columns(2)
+                with c_ed:
+                    if st.button("✏️ Editar", key=f"btn_e_{idx}", use_container_width=True):
                         st.session_state.editando_indice = idx
                         st.session_state.modo_adicionar = True
                         st.session_state.fotos_atuais = list(ev.get("imagens", []))
-                        st.session_state.abrir_camera = False
                         st.rerun()
-                with col_btn2:
-                    if st.button(f"🗑️ Excluir Apontamento #{idx + 1}", key=f"btn_del_{idx}", use_container_width=True):
+                with c_del:
+                    if st.button("🗑️ Excluir", key=f"btn_d_{idx}", use_container_width=True):
                         st.session_state.evidencias.pop(idx)
                         salvar_rascunho_db(st.session_state.usuario_logado, empresa_cliente, inspetor, faixa_func, st.session_state.evidencias)
-                        st.toast(f"Apontamento #{idx + 1} removido.")
                         st.rerun()
 
-        # 5. Plano de Ação e Compartilhamento
+        # 5. Compartilhamento via WhatsApp
         ncs_atuais = [e for e in st.session_state.evidencias if e['status'] == "Não Conformidade"]
-        if ncs_atuais:
-            st.markdown("---")
-            st.subheader("📋 Plano de Ação para Regularização (Pré-visualização)")
-            df_plano_tela = pd.DataFrame([
-                {
-                    "Item": f"#{i}",
-                    "Norma / Item": f"{e['nr']} ({e['item_nr']})",
-                    "Infração / Requisito Legal (NR)": e["descricao"],
-                    "Cenário Observado": e["descricao_cenario"],
-                    "Ação Corretiva": e["acao_corretiva"],
-                    "Prioridade": e.get("prioridade", "Média"),
-                    "Prazo Limite": "___/___/______"
-                }
-                for i, e in enumerate(ncs_atuais, 1)
-            ])
-            st.dataframe(df_plano_tela, use_container_width=True)
-
-        st.subheader("📲 Compartilhar Resumo via WhatsApp")
-        col_w1, col_w2 = st.columns([1.5, 1])
-        with col_w1:
-            tel_wpp = st.text_input("WhatsApp do Cliente/Engenheiro (DDD + Número):", placeholder="Ex: 11999998888")
-        with col_w2:
-            st.write("")
-            st.write("")
+        st.markdown("#### 📲 Envio Imediato por WhatsApp")
+        c_w1, c_w2 = st.columns([2, 1.2])
+        with c_w1:
+            tel_wpp = st.text_input("WhatsApp do Gestor/Cliente:", placeholder="DDD + Número (ex: 34999998888)", label_visibility="collapsed")
+        with c_w2:
             if tel_wpp:
                 link_wpp = gerar_link_whatsapp(tel_wpp, empresa_cliente, tot_multa_max, tot_econ_max, len(ncs_atuais))
-                st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25D366;color:white;border:none;padding:10px 16px;border-radius:6px;font-weight:bold;width:100%;">💬 Enviar Resumo no WhatsApp</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25D366;color:white;border:none;height:48px;border-radius:10px;font-weight:700;width:100%;cursor:pointer;">💬 Enviar</button></a>', unsafe_allow_html=True)
 
-        # 6. Emissão do PDF e Finalização
-        st.markdown("---")
-        st.subheader("📄 Emissão do Relatório Técnico em PDF")
+        # 6. Emissão do Relatório PDF Final
+        st.markdown("#### 📄 Laudo Técnico com Plano de Ação")
         data_hoje = datetime.date.today().strftime("%d/%m/%Y")
         dados_relatorio = {
             "empresa_cliente": empresa_cliente,
@@ -1401,40 +1443,27 @@ elif aba_selecionada == "📋 Nova Vistoria":
         pdf_buffer = gerar_pdf_completo(dados_relatorio, st.session_state.evidencias, logo_pil=logo_para_relatorio)
         pdf_bytes_final = pdf_buffer.getvalue()
 
-        c_salvar, c_baixar, c_limpar = st.columns([1.2, 1.2, 1])
-        with c_salvar:
-            if st.button("💾 Salvar no Histórico", type="secondary", use_container_width=True):
-                salvar_relatorio_db(
-                    data_hoje,
-                    empresa_cliente,
-                    inspetor,
-                    len(st.session_state.evidencias),
-                    tot_multa_min,
-                    tot_multa_max,
-                    tot_econ_min,
-                    tot_econ_max,
-                    pdf_bytes_final
-                )
+        c_sv, c_bx, c_lp = st.columns([1.2, 1.4, 1])
+        with c_sv:
+            if st.button("💾 Salvar Histórico", use_container_width=True):
+                salvar_relatorio_db(data_hoje, empresa_cliente, inspetor, len(st.session_state.evidencias), tot_multa_min, tot_multa_max, tot_econ_min, tot_econ_max, pdf_bytes_final)
                 limpar_rascunho_db(st.session_state.usuario_logado)
-                st.toast("✅ Relatório salvo no histórico com sucesso!")
-
-        with c_baixar:
+                st.toast("✅ Salvo no histórico!")
+        with c_bx:
             st.download_button(
-                label="⬇️ Baixar Laudo com Plano de Ação em PDF",
+                label="⬇️ Baixar PDF",
                 data=pdf_bytes_final,
-                file_name=f"Laudo_SST_{empresa_cliente.replace(' ', '_')}_{datetime.date.today().strftime('%Y%m%d')}.pdf",
+                file_name=f"Laudo_SST_{empresa_cliente.replace(' ', '_')}.pdf",
                 mime="application/pdf",
                 type="primary",
                 use_container_width=True
             )
-
-        with c_limpar:
-            if st.button("🗑️ Nova Vistoria (Limpar Tudo)", use_container_width=True):
+        with c_lp:
+            if st.button("🗑️ Nova", use_container_width=True):
                 limpar_rascunho_db(st.session_state.usuario_logado)
                 st.session_state.evidencias = []
                 st.session_state.fotos_atuais = []
                 st.session_state.ia_sugestao = None
                 st.session_state.editando_indice = None
-                st.session_state.abrir_camera = False
                 st.session_state.modo_adicionar = True
                 st.rerun()
