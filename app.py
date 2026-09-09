@@ -23,48 +23,41 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as Re
 from reportlab.pdfgen import canvas
 
 # ---------------------------------------------------------
-# Configuração de Página e Estilização Mobile & Desktop
+# Configuração de Página e Estilização Universal (Anti-Dark Mode)
 # ---------------------------------------------------------
 st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layout="centered")
 
 st.markdown("""
 <style>
-    /* Ocultar elementos desnecessários da barra padrão */
+    /* Ocultar elementos padrão do Streamlit */
     #MainMenu, header, footer, [data-testid="stToolbar"] {
         visibility: hidden !important;
         display: none !important;
     }
     
-    /* Prevenção de Pull-to-Refresh */
-    html, body {
+    /* Trava elástica e fundo geral forçado */
+    html, body, [data-testid="stAppViewContainer"], .stApp {
         overscroll-behavior-y: none !important;
         overscroll-behavior: none !important;
         background-color: #F8FAFC !important;
+        color: #0F172A !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     }
-    .stApp, div[data-testid="stAppViewContainer"] {
-        overscroll-behavior-y: contain !important;
-        overscroll-behavior: contain !important;
-        background-color: #F8FAFC !important;
+
+    /* FORÇAR CONTRASTE DE TODOS OS TEXTOS NATIVOS E LABELS DO STREAMLIT */
+    .stMarkdown, .stMarkdown p, .stMarkdown span, .stMarkdown strong, .stMarkdown b,
+    [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span,
+    label, [data-testid="stRadio"] label, [data-testid="stRadio"] div,
+    .stCheckbox label, .stSelectbox label, .stTextArea label, .stTextInput label {
+        color: #0F172A !important;
+        font-weight: 600 !important;
     }
 
-    /* Espaçamento superior */
+    /* Espaçamento da área útil */
     .block-container {
         padding-top: 1.0rem !important;
         padding-bottom: 3.5rem !important;
         max-width: 720px !important;
-    }
-
-    /* Títulos e textos de layout com cor garantida */
-    .main-title {
-        color: #0F172A !important;
-        font-weight: 800;
-        font-size: 1.45rem;
-        margin: 0;
-    }
-    .main-subtitle {
-        color: #64748B !important;
-        font-size: 0.85rem;
     }
 
     /* Stepper Visual */
@@ -81,7 +74,7 @@ st.markdown("""
     .step-item {
         font-size: 0.78rem;
         font-weight: 700;
-        color: #94A3B8;
+        color: #64748B !important;
         display: flex;
         align-items: center;
         gap: 5px;
@@ -176,18 +169,7 @@ st.markdown("""
         border-bottom: 1px solid #E2E8F0;
     }
 
-    /* Barra de Ações Rápidas no Rodapé */
-    .quick-bar {
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 14px;
-        padding: 12px 14px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-        margin-top: 16px;
-        margin-bottom: 20px;
-    }
-
-    /* Estilização Segura dos Expanders */
+    /* Expanders Estilizados */
     div[data-testid="stExpander"] {
         background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
@@ -200,20 +182,41 @@ st.markdown("""
         font-weight: 700 !important;
     }
 
-    /* Botões Touch-Friendly */
+    /* Forçar cores claras nos campos de digitação */
+    div[data-baseweb="input"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
+        border-radius: 10px !important;
+    }
+    div[data-baseweb="input"] input {
+        color: #0F172A !important;
+    }
+    div[data-baseweb="textarea"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
+        border-radius: 10px !important;
+    }
+    div[data-baseweb="textarea"] textarea {
+        color: #0F172A !important;
+    }
+
+    /* Forçar cores claras nos Selectboxes */
+    div[data-baseweb="select"] {
+        background-color: #FFFFFF !important;
+        border-radius: 10px !important;
+    }
+    div[data-baseweb="select"] div {
+        color: #0F172A !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+    }
+
+    /* Botões */
     .stButton > button {
         border-radius: 10px !important;
         min-height: 48px !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
         font-size: 0.95rem !important;
-        transition: all 0.15s ease !important;
-    }
-
-    /* Preservar legibilidade em inputs e selects sem quebrar o modo escuro do navegador */
-    div[data-baseweb="select"] div {
-        white-space: normal !important;
-        word-break: break-word !important;
-        line-height: 1.35 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -576,7 +579,7 @@ def analisar_imagem_com_ia(imagem_pil):
         return None, f"Instabilidade na rede: {str(e)}"
 
 # ---------------------------------------------------------
-# Buscador Local 100% Offline
+# Buscador Local 100% Offline (Sem Internet)
 # ---------------------------------------------------------
 def enquadrar_local_offline(descricao_texto, df_base_nrs):
     palavras = [p.lower().strip() for p in descricao_texto.split() if len(p) > 2]
@@ -601,8 +604,8 @@ def enquadrar_local_offline(descricao_texto, df_base_nrs):
             "status": "Não Conformidade",
             "nr_sugerida": melhor["nr"],
             "item_provavel": melhor["item"],
-            "descricao_cenario": f"Constatada condição irregular relacionada a: {melhor['descricao']}.",
-            "acao_corretiva": f"Adequar de imediato as condições de trabalho conforme requisitos da {melhor['nr']} (Item {melhor['item']}).",
+            "descricao_cenario": f"Constatada condição irregular em campo: {melhor['descricao']}.",
+            "acao_corretiva": f"Adequar de imediato as condições operacionais aos requisitos da {melhor['nr']} (Item {melhor['item']}).",
             "prioridade": "Alta" if melhor.get("infracao") in ["I4", "I3"] else "Média"
         }, None
     else:
@@ -851,7 +854,6 @@ class NumberedCanvas(canvas.Canvas):
         texto_esquerda = "Laudo Técnico de Auditoria SST & Enquadramento NR 28"
         texto_direita = f"Página {self._pageNumber} de {page_count}"
         
-        # Linha e rodapé
         self.setStrokeColorHex("#CBD5E1")
         self.setLineWidth(0.5)
         self.line(36, 26, A4[0] - 36, 26)
@@ -1162,7 +1164,7 @@ with st.sidebar:
         st.session_state.modo_offline = False
 
     st.markdown("---")
-    st.session_state.modo_offline = st.toggle("📴 Modo Campo / Sem Sinal (Offline)", value=st.session_state.modo_offline)
+    st.session_state.modo_offline = st.toggle("📴 Modo Campo / Offline", value=st.session_state.modo_offline)
     if st.session_state.modo_offline:
         st.caption("⚡ Busca local ativa no dispositivo. Chamadas em nuvem desativadas.")
 
@@ -1198,9 +1200,8 @@ with st.sidebar:
 # ABA 1: PAINEL DE ADMINISTRAÇÃO & DASHBOARD POR EMPRESA
 # =========================================================
 if aba_selecionada == "⚙️ Painel de Administração":
-    st.markdown('<h2 class="main-title">Painel Administrativo</h2>', unsafe_allow_html=True)
-    st.markdown('<span class="main-subtitle">Gestão de acessos e inteligência de dados</span>', unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("## ⚙️ Painel Administrativo")
+    st.caption("Gestão de acessos e inteligência de dados")
 
     tab_usuarios, tab_relatorios, tab_dashboard = st.tabs(["👥 Usuários", "📂 Histórico de Laudos", "📈 Dashboard por Empresa"])
 
@@ -1315,7 +1316,7 @@ if aba_selecionada == "⚙️ Painel de Administração":
             st.info("Nenhuma vistoria salva para exibição do dashboard.")
 
 # =========================================================
-# ABA 2: VISTORIA EM CAMPO (Design Mobile Refinado)
+# ABA 2: VISTORIA EM CAMPO (Online & Offline com Sync)
 # =========================================================
 elif aba_selecionada == "📋 Vistoria em Campo":
     if "evidencias" not in st.session_state:
@@ -1379,6 +1380,28 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         inspetor = f"{st.session_state.usuario_logado.capitalize()} (SST)"
         faixa_func = list(TABELA_MULTAS_SEGURANCA.keys())[2]
 
+    # BOTÃO DE SINCRONIZAÇÃO EM LOTE
+    if st.session_state.evidencias:
+        if st.session_state.modo_offline:
+            st.info("📴 Você está no Modo Campo (Offline). Quando retornar a um local com sinal, desative o modo offline no menu lateral para sincronizar e reavaliar seus apontamentos com a IA.")
+        else:
+            col_sync1, col_sync2 = st.columns([2.5, 1])
+            with col_sync1:
+                st.markdown("<p style='margin:0; font-size:0.85rem; color:#1E293B;'>Deseja aprimorar todos os apontamentos salvos com a IA da nuvem?</p>", unsafe_allow_html=True)
+            with col_sync2:
+                if st.button("🔄 Sincronizar Tudo", use_container_width=True, type="secondary"):
+                    with st.spinner("Refinando laudo com inteligência artificial..."):
+                        itens_atualizados = 0
+                        for it in st.session_state.evidencias:
+                            res, _ = sugerir_enquadramento_por_texto(it["descricao_cenario"], df_nr_base, modo_offline=False)
+                            if res:
+                                it["acao_corretiva"] = res.get("acao_corretiva", it["acao_corretiva"])
+                                it["prioridade"] = res.get("prioridade", it["prioridade"])
+                                itens_atualizados += 1
+                        salvar_rascunho_db(st.session_state.usuario_logado, empresa_cliente, inspetor, faixa_func, st.session_state.evidencias)
+                        st.toast(f"✅ {itens_atualizados} apontamento(s) sincronizados com sucesso!")
+                        st.rerun()
+
     tot_multa_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
     tot_multa_max = sum(e['valor_max'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
     tot_econ_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Conformidade")
@@ -1417,7 +1440,7 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 <div style="font-weight:700; color:#1E40AF; font-size:0.90rem; margin-bottom:2px;">
                     ⚡ Enquadramento Inteligente (Texto ou Voz)
                 </div>
-                <div style="font-size:0.80rem; color:#3B82F6;">
+                <div style="font-size:0.80rem; color:#1E3A8A;">
                     Dite ou digite o que foi visto na obra para localizar a norma automaticamente:
                 </div>
             </div>
@@ -1428,8 +1451,8 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 <div style="font-weight:700; color:#92400E; font-size:0.90rem; margin-bottom:2px;">
                     📴 Buscador Local Ativo (100% Offline)
                 </div>
-                <div style="font-size:0.80rem; color:#B45309;">
-                    Digite palavras-chave (ex: altura, epi, serra, eletrica) para buscar na base interna:
+                <div style="font-size:0.80rem; color:#78350F;">
+                    Digite palavras-chave (ex: altura, epi, serra, eletrica) para buscar na base interna sem internet:
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1438,7 +1461,7 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         with col_t1:
             texto_relato = st.text_input(
                 "Descreva a ocorrência:",
-                placeholder="Ex: Operários em andaime a 4m sem cinto e sem linha de vida",
+                placeholder="Ex: Operários em andaime a 4m sem cinto e sem proteção",
                 key=f"texto_ia_{st.session_state.contador_fluxo}",
                 label_visibility="collapsed"
             )
@@ -1643,13 +1666,7 @@ elif aba_selecionada == "📋 Vistoria em Campo":
             st.rerun()
 
     else:
-        st.markdown("""
-        <div class="quick-bar">
-            <div style="font-weight:700; color:#0F172A; font-size:0.92rem; margin-bottom:8px;">
-                ⚡ Próximas Ações Rápidas:
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.write("---")
         c_add, c_fin = st.columns(2)
         with c_add:
             if st.button("➕ Novo Apontamento", use_container_width=True):
