@@ -1,6 +1,7 @@
 import io
 import os
 import json
+import time
 import uuid
 import sqlite3
 import datetime
@@ -26,7 +27,7 @@ st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layou
 
 st.markdown("""
 <style>
-    /* DESATIVA O PULL-TO-REFRESH (DESLIZAR PARA BAIXO E ZERAR) */
+    /* DESATIVA O PULL-TO-REFRESH (DESLIZAR PARA BAIXO E RECARREGAR) */
     html, body {
         overscroll-behavior-y: none !important;
         overscroll-behavior: none !important;
@@ -363,7 +364,67 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     return img
 
 # ---------------------------------------------------------
-# Assistente de Enquadramento por Texto / Voz (Gemini IA)
+# Auditoria com IA (Com Fallback e Tolerância a 503)
+# ---------------------------------------------------------
+def analisar_imagem_com_ia(imagem_pil):
+    api_key = None
+    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["GEMINI_API_KEY"]
+    elif "GEMINI_API_KEY" in os.environ:
+        api_key = os.environ["GEMINI_API_KEY"]
+
+    if not api_key:
+        return None, "Chave GEMINI_API_KEY não configurada nos Secrets do Streamlit."
+
+    try:
+        client = genai.Client(api_key=api_key)
+        prompt = """
+        Você é um Engenheiro de Segurança do Trabalho especialista nas Normas Regulamentadoras (NRs) do Brasil.
+        Analise a imagem desta inspeção e forneça estritamente um JSON estruturado:
+        {
+            "status": "Não Conformidade" ou "Conformidade",
+            "nr_sugerida": "Ex: NR 35",
+            "item_provavel": "Ex: 35.2.1",
+            "descricao_cenario": "Descrição clara e objetiva do que foi visualizado na cena",
+            "acao_corretiva": "Medida corretiva técnica imediata recomendada",
+            "prioridade": "Alta", "Média" ou "Baixa"
+        }
+        """
+
+        img_ia = imagem_pil.copy()
+        img_ia.thumbnail((800, 800), Image.Resampling.BILINEAR)
+        buf = io.BytesIO()
+        img_ia.save(buf, format="JPEG", quality=75)
+        
+        # Modelos com fallback caso o cluster principal dê 503
+        modelos_fallback = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        ultimo_erro = ""
+
+        for mod in modelos_fallback:
+            for tentativa in range(2):
+                try:
+                    response = client.models.generate_content(
+                        model=mod,
+                        contents=[
+                            types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                            prompt
+                        ],
+                        config={"response_mime_type": "application/json"}
+                    )
+                    return json.loads(response.text), None
+                except Exception as e:
+                    ultimo_erro = str(e)
+                    if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower():
+                        time.sleep(1.2)
+                        continue
+                    break
+
+        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})."
+    except Exception as e:
+        return None, f"Instabilidade na rede de IA: {str(e)}"
+
+# ---------------------------------------------------------
+# Assistente de Enquadramento por Texto / Voz (Mais Rápido e Estável)
 # ---------------------------------------------------------
 def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
     api_key = None
@@ -404,12 +465,26 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
         }}
         """
 
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt,
-            config={"response_mime_type": "application/json"}
-        )
-        return json.loads(response.text), None
+        modelos_fallback = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        ultimo_erro = ""
+
+        for mod in modelos_fallback:
+            for tentativa in range(2):
+                try:
+                    response = client.models.generate_content(
+                        model=mod,
+                        contents=prompt,
+                        config={"response_mime_type": "application/json"}
+                    )
+                    return json.loads(response.text), None
+                except Exception as e:
+                    ultimo_erro = str(e)
+                    if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower():
+                        time.sleep(1.0)
+                        continue
+                    break
+
+        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})."
     except Exception as e:
         return None, f"Erro na análise de texto: {str(e)}"
 
@@ -665,14 +740,12 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
 
         elementos.append(Spacer(1, 10))
 
-    # 4. Análise Gráfica
     elementos.append(Paragraph("<b>4. Análise Gráfica: Riscos de Multas vs Economia Gerada</b>", styles['Heading3']))
     elementos.append(Spacer(1, 6))
     grafico_buf = gerar_grafico_multas(lista_evidencias)
     elementos.append(ReportLabImage(grafico_buf, width=490, height=220))
     elementos.append(Spacer(1, 14))
 
-    # 5. Balanço Financeiro Consolidado
     elementos.append(Paragraph("<b>5. Balanço Financeiro das Multas e Economia (NR 28)</b>", styles['Heading3']))
     elementos.append(Spacer(1, 6))
 
@@ -1046,10 +1119,22 @@ elif aba_selecionada == "📋 Nova Vistoria":
             for idx_f, img in enumerate(st.session_state.fotos_atuais):
                 cols_p[idx_f % 4].image(img, use_container_width=True)
 
-            if st.button("❌ Limpar fotos deste apontamento", use_container_width=True):
-                st.session_state.fotos_atuais = []
-                st.session_state.ia_sugestao = None
-                st.rerun()
+            col_ia, col_limpar_f = st.columns([1.5, 1])
+            with col_ia:
+                if st.button("✨ Analisar Foto com IA", use_container_width=True):
+                    with st.spinner("Analisando riscos técnicos da imagem..."):
+                        resultado_ia, err_ia = analisar_imagem_com_ia(st.session_state.fotos_atuais[0])
+                        if resultado_ia:
+                            st.session_state.ia_sugestao = resultado_ia
+                            st.toast("✅ Sugestão de enquadramento aplicada!")
+                            st.rerun()
+                        else:
+                            st.warning(f"Atenção: {err_ia}")
+            with col_limpar_f:
+                if st.button("❌ Limpar fotos deste apontamento", use_container_width=True):
+                    st.session_state.fotos_atuais = []
+                    st.session_state.ia_sugestao = None
+                    st.rerun()
 
         st.markdown("**2. Situação Identificada:**")
         index_status = 0
