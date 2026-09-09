@@ -28,7 +28,7 @@ st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layou
 
 st.markdown("""
 <style>
-    /* Ocultar elementos padrão do Streamlit para aspecto nativo */
+    /* Ocultar elementos nativos do Streamlit */
     #MainMenu, header, footer, [data-testid="stToolbar"] {
         visibility: hidden !important;
         display: none !important;
@@ -53,43 +53,48 @@ st.markdown("""
         color: #0F172A !important;
     }
 
-    /* Cabeçalho e conteúdo dos Expanders */
-    div[data-testid="stExpander"] {
-        background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
-        border-radius: 12px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
-        margin-bottom: 10px !important;
-    }
-    div[data-testid="stExpander"] summary,
-    div[data-testid="stExpander"] summary p,
-    div[data-testid="stExpander"] summary span {
-        color: #0F172A !important;
-        font-weight: 700 !important;
-    }
-    div[data-testid="stExpander"] div[role="region"] {
-        color: #1E293B !important;
-    }
-
-    /* Espaçamento superior */
+    /* Espaçamento superior ajustado */
     .block-container {
-        padding-top: 1.2rem !important;
+        padding-top: 1.0rem !important;
         padding-bottom: 3.5rem !important;
         max-width: 720px !important;
+    }
+
+    /* Stepper Visual (Progresso da Vistoria) */
+    .stepper-container {
+        display: flex;
+        justify-content: space-between;
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 8px 12px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .step-item {
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #94A3B8;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    .step-active {
+        color: #2563EB !important;
     }
 
     /* Cards de KPI Financeiro */
     .kpi-container {
         display: flex;
         gap: 12px;
-        margin-top: 10px;
-        margin-bottom: 16px;
+        margin-top: 8px;
+        margin-bottom: 14px;
     }
     .kpi-card {
         flex: 1;
         background: #FFFFFF !important;
         border-radius: 14px;
-        padding: 14px 16px;
+        padding: 12px 14px;
         box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
         border: 1px solid #E2E8F0;
     }
@@ -97,15 +102,15 @@ st.markdown("""
     .kpi-card-success { border-top: 4px solid #10B981 !important; }
     .kpi-card-info { border-top: 4px solid #3B82F6 !important; }
     .kpi-title {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         color: #64748B !important;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
     }
     .kpi-value {
-        font-size: 1.25rem;
+        font-size: 1.22rem;
         font-weight: 800;
         line-height: 1.2;
     }
@@ -113,38 +118,96 @@ st.markdown("""
     .kpi-value-success { color: #059669 !important; }
     .kpi-value-info { color: #1D4ED8 !important; }
     .kpi-sub {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         color: #64748B !important;
-        margin-top: 4px;
+        margin-top: 3px;
     }
 
-    /* Banners e Cartões Informativos */
+    /* Badges / Pílulas de Status e Risco */
+    .badge-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        margin-right: 6px;
+    }
+    .badge-danger { background-color: #FEE2E2; color: #991B1B !important; }
+    .badge-warning { background-color: #FEF3C7; color: #92400E !important; }
+    .badge-success { background-color: #DCFCE7; color: #166534 !important; }
+    .badge-info { background-color: #DBEAFE; color: #1E40AF !important; }
+
+    /* Banners e Assistente de IA */
     .ai-assistant-card {
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%) !important;
         border: 1px solid #BFDBFE !important;
         border-radius: 14px;
-        padding: 14px 16px;
-        margin-bottom: 16px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
     }
     .offline-card {
         background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%) !important;
         border: 1px solid #FCD34D !important;
         border-radius: 14px;
-        padding: 14px 16px;
-        margin-bottom: 16px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
     }
 
+    /* Cartões de Enquadramento Legal */
     .norma-card {
         background-color: #FFFFFF !important;
         border-left: 5px solid #2563EB !important;
-        padding: 14px 16px;
+        padding: 12px 14px;
         border-radius: 10px;
         margin-top: 10px;
-        margin-bottom: 14px;
+        margin-bottom: 12px;
         box-shadow: 0 2px 6px rgba(0,0,0,0.04);
         border-top: 1px solid #E2E8F0;
         border-right: 1px solid #E2E8F0;
         border-bottom: 1px solid #E2E8F0;
+    }
+
+    /* Miniaturas com Selo Forense */
+    .photo-thumb-box {
+        position: relative;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 8px;
+    }
+    .photo-forensic-tag {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: rgba(15, 23, 42, 0.75);
+        color: #FFFFFF !important;
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        backdrop-filter: blur(2px);
+    }
+
+    /* Barra de Ações Rápidas no Rodapé */
+    .quick-bar {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 12px 14px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        margin-top: 16px;
+        margin-bottom: 20px;
+    }
+
+    /* Cabeçalho e conteúdo dos Expanders */
+    div[data-testid="stExpander"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
+        margin-bottom: 8px !important;
     }
 
     /* Botões Touch-Friendly */
@@ -153,10 +216,10 @@ st.markdown("""
         min-height: 48px !important;
         font-weight: 600 !important;
         font-size: 0.95rem !important;
-        transition: all 0.2s ease !important;
+        transition: all 0.15s ease !important;
     }
 
-    /* Entradas e Seletores */
+    /* Inputs e Caixas de Seleção */
     div[data-baseweb="input"], div[data-baseweb="select"], div[data-baseweb="textarea"] {
         border-radius: 10px !important;
         background-color: #FFFFFF !important;
@@ -168,14 +231,6 @@ st.markdown("""
         white-space: normal !important;
         word-break: break-word !important;
         line-height: 1.35 !important;
-        color: #0F172A !important;
-    }
-    div[data-baseweb="popover"] ul,
-    div[data-baseweb="popover"] li {
-        white-space: normal !important;
-        word-break: break-word !important;
-        min-height: 46px !important;
-        line-height: 1.4 !important;
         color: #0F172A !important;
     }
 </style>
@@ -539,7 +594,7 @@ def analisar_imagem_com_ia(imagem_pil):
         return None, f"Instabilidade na rede: {str(e)}"
 
 # ---------------------------------------------------------
-# Buscador Local 100% Offline (Sem Internet)
+# Buscador Local 100% Offline
 # ---------------------------------------------------------
 def enquadrar_local_offline(descricao_texto, df_base_nrs):
     palavras = [p.lower().strip() for p in descricao_texto.split() if len(p) > 2]
@@ -650,7 +705,6 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs, modo_offlin
         except Exception:
             pass
 
-    # Se a rede estiver indisponível no momento, recorre ao motor local
     return enquadrar_local_offline(descricao_problema, df_base_nrs)
 
 # ---------------------------------------------------------
@@ -776,7 +830,7 @@ def gerar_grafico_historico_empresa(df_empresa):
     ax1.grid(axis='y', linestyle='--', alpha=0.4)
     ax1.legend(fontsize=7.5)
 
-    # Gráfico 2: Quantidade de Itens Apontados
+    # Gráfico 2: Quantidade de Itens Auditados
     ax2.bar(range(len(df_sorted)), df_sorted["total_itens"], color='#3B82F6', width=0.4)
     ax2.set_title("Total de Itens Auditados", fontsize=9, fontweight='bold', pad=8)
     ax2.set_xticks(range(len(df_sorted)))
@@ -1062,7 +1116,6 @@ with st.sidebar:
     else:
         st.caption("📍 GPS: Aguardando sinal...")
 
-    # Chave do Modo Offline
     if "modo_offline" not in st.session_state:
         st.session_state.modo_offline = False
 
@@ -1217,7 +1270,7 @@ if aba_selecionada == "⚙️ Painel de Administração":
             st.info("Nenhuma vistoria salva para exibição do dashboard.")
 
 # =========================================================
-# ABA 2: VISTORIA EM CAMPO (Online & Offline)
+# ABA 2: VISTORIA EM CAMPO (Design Mobile Refinado)
 # =========================================================
 elif aba_selecionada == "📋 Vistoria em Campo":
     if "evidencias" not in st.session_state:
@@ -1235,6 +1288,7 @@ elif aba_selecionada == "📋 Vistoria em Campo":
     if "abrir_camera" not in st.session_state:
         st.session_state.abrir_camera = False
 
+    # Recuperação de rascunho
     rascunho_existente = carregar_rascunho_db(st.session_state.usuario_logado)
     if rascunho_existente and not st.session_state.evidencias:
         st.markdown(f"""
@@ -1254,22 +1308,21 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 limpar_rascunho_db(st.session_state.usuario_logado)
                 st.rerun()
 
-    # Cabeçalho Principal
-    modo_status_badge = "⚡ Online (IA Turbo)" if not st.session_state.modo_offline else "📴 Modo Offline Local"
+    # Indicador de Progresso Visual (Stepper)
+    passo_1_cls = "step-active" if not st.session_state.evidencias else ""
+    passo_2_cls = "step-active" if st.session_state.modo_adicionar else ""
+    passo_3_cls = "step-active" if (st.session_state.evidencias and not st.session_state.modo_adicionar) else ""
+
     st.markdown(f"""
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-        <div>
-            <h2 style="margin:0; font-weight:800; color:#0F172A; font-size:1.45rem;">Vistoria de Campo</h2>
-            <span style="color:#64748B; font-size:0.85rem;">Enquadramento NR 28 & Avaliação Financeira</span>
-        </div>
-        <div style="background:#EEF2F6; padding:8px 12px; border-radius:10px; font-weight:700; color:#1E293B; font-size:0.85rem;">
-            {modo_status_badge}
-        </div>
+    <div class="stepper-container">
+        <div class="step-item {passo_1_cls}"><b>1</b> Identificação</div>
+        <div class="step-item {passo_2_cls}"><b>2</b> Apontamentos ({len(st.session_state.evidencias)})</div>
+        <div class="step-item {passo_3_cls}"><b>3</b> Laudo & PDF</div>
     </div>
     """, unsafe_allow_html=True)
 
     # 1. Dados da Obra / Empresa
-    with st.expander("🏢 Dados da Empresa & Equipe", expanded=False):
+    with st.expander("🏢 Dados da Obra & Equipe", expanded=False):
         col1, col2 = st.columns(2)
         with col1:
             emp_padrao = rascunho_existente["empresa"] if (rascunho_existente and not st.session_state.evidencias) else "Construtora Exemplo Ltda"
@@ -1322,10 +1375,10 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         if not st.session_state.modo_offline:
             st.markdown("""
             <div class="ai-assistant-card">
-                <div style="font-weight:700; color:#1E40AF; font-size:0.92rem; margin-bottom:2px;">
-                    ⚡ Enquadramento Inteligente (Texto ou Ditado de Voz)
+                <div style="font-weight:700; color:#1E40AF; font-size:0.90rem; margin-bottom:2px;">
+                    ⚡ Enquadramento Inteligente (Texto ou Voz)
                 </div>
-                <div style="font-size:0.8rem; color:#3B82F6;">
+                <div style="font-size:0.80rem; color:#3B82F6;">
                     Dite ou digite o que foi visto na obra para localizar a norma automaticamente:
                 </div>
             </div>
@@ -1333,11 +1386,11 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         else:
             st.markdown("""
             <div class="offline-card">
-                <div style="font-weight:700; color:#92400E; font-size:0.92rem; margin-bottom:2px;">
+                <div style="font-weight:700; color:#92400E; font-size:0.90rem; margin-bottom:2px;">
                     📴 Buscador Local Ativo (100% Offline)
                 </div>
-                <div style="font-size:0.8rem; color:#B45309;">
-                    Digite palavras-chave (ex: altura, epi, serra, eletrica) para buscar na base interna sem internet:
+                <div style="font-size:0.80rem; color:#B45309;">
+                    Digite palavras-chave (ex: altura, epi, serra, eletrica) para buscar na base interna:
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1346,7 +1399,7 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         with col_t1:
             texto_relato = st.text_input(
                 "Descreva a ocorrência:",
-                placeholder="Ex: Operários em andaime a 4m sem cinto e sem proteção de periferia",
+                placeholder="Ex: Operários em andaime a 4m sem cinto e sem linha de vida",
                 key=f"texto_ia_{st.session_state.contador_fluxo}",
                 label_visibility="collapsed"
             )
@@ -1398,7 +1451,13 @@ elif aba_selecionada == "📋 Vistoria em Campo":
             st.write(f"Fotos anexadas ({len(st.session_state.fotos_atuais)}):")
             cols_p = st.columns(min(len(st.session_state.fotos_atuais), 4))
             for idx_f, img in enumerate(st.session_state.fotos_atuais):
-                cols_p[idx_f % 4].image(img, use_container_width=True)
+                with cols_p[idx_f % 4]:
+                    st.markdown("""
+                    <div class="photo-thumb-box">
+                        <div class="photo-forensic-tag">📍 GPS FORENSE</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.image(img, use_container_width=True)
 
             col_ia, col_limp = st.columns([1.5, 1])
             with col_ia:
@@ -1484,15 +1543,18 @@ elif aba_selecionada == "📋 Vistoria em Campo":
         if eh_conforme:
             st.markdown(f"""
             <div class="norma-card" style="border-left-color: #10B981;">
-                <b style="color: #065F46;">✅ Requisito Atendido: {item_escolhido['nr']} (Item {item_escolhido['item']})</b>
+                <span class="badge-pill badge-success">BOA PRÁTICA</span>
+                <b style="color: #065F46;">{item_escolhido['nr']} (Item {item_escolhido['item']})</b>
                 <p style="margin: 4px 0; color: #1E293B; font-size: 0.9rem;">{item_escolhido['descricao']}</p>
                 <span style="font-size: 0.82rem; color: #047857;"><b>Economia Gerada Estimada:</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)}</span>
             </div>
             """, unsafe_allow_html=True)
         else:
+            cor_badge = "badge-danger" if prioridade_selecionada == "Alta" else "badge-warning"
             st.markdown(f"""
             <div class="norma-card" style="border-left-color: #EF4444;">
-                <b style="color: #991B1B;">⚠️ Não Conformidade: {item_escolhido['nr']} (Item {item_escolhido['item']})</b>
+                <span class="badge-pill {cor_badge}">PRIORIDADE {prioridade_selecionada.upper()}</span>
+                <b style="color: #991B1B;">{item_escolhido['nr']} (Item {item_escolhido['item']})</b>
                 <p style="margin: 4px 0; color: #1E293B; font-size: 0.9rem;">{item_escolhido['descricao']}</p>
                 <span style="font-size: 0.82rem; color: #B91C1C;"><b>Multa Prevista (NR 28):</b> {formata_brl(multa_calc_min)} a {formata_brl(multa_calc_max)} | Grau {item_escolhido['infracao']}</span>
             </div>
@@ -1548,6 +1610,13 @@ elif aba_selecionada == "📋 Vistoria em Campo":
             st.rerun()
 
     else:
+        st.markdown("""
+        <div class="quick-bar">
+            <div style="font-weight:700; color:#0F172A; font-size:0.92rem; margin-bottom:8px;">
+                ⚡ Próximas Ações Rápidas:
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         c_add, c_fin = st.columns(2)
         with c_add:
             if st.button("➕ Novo Apontamento", use_container_width=True):
@@ -1560,15 +1629,18 @@ elif aba_selecionada == "📋 Vistoria em Campo":
                 st.session_state.modo_adicionar = False
                 st.session_state.editando_indice = None
 
-    # 4. Feed de Apontamentos Gravados
+    # 4. Feed de Apontamentos Gravados com Badges
     if st.session_state.evidencias:
         st.markdown(f"#### 📑 Apontamentos Registrados ({len(st.session_state.evidencias)})")
         for idx, ev in enumerate(st.session_state.evidencias):
             eh_c = (ev["status"] == "Conformidade")
-            cor_tag = "🟢" if eh_c else "🔴"
-            tag_rot = "Boa Prática" if eh_c else f"Não Conformidade ({ev.get('prioridade', 'Média')})"
+            prio = ev.get("prioridade", "Média")
+            badge_html = '<span class="badge-pill badge-success">BOA PRÁTICA</span>' if eh_c else (
+                f'<span class="badge-pill badge-danger">PRIORIDADE {prio.upper()}</span>' if prio == "Alta" else f'<span class="badge-pill badge-warning">PRIORIDADE {prio.upper()}</span>'
+            )
 
-            with st.expander(f"{cor_tag} #{idx + 1} — {ev['nr']} (Item {ev['item_nr']}) | {tag_rot}"):
+            with st.expander(f"#{idx + 1} — {ev['nr']} (Item {ev['item_nr']})"):
+                st.markdown(f"{badge_html} **{ev['nr']}**", unsafe_allow_html=True)
                 st.markdown(f"**Infração / Requisito:** {ev['descricao']}")
                 st.markdown(f"**Cenário:** {ev['descricao_cenario']}")
                 st.markdown(f"**Ação:** {ev['acao_corretiva']}")
