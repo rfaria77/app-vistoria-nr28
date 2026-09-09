@@ -366,6 +366,9 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
 # ---------------------------------------------------------
 # Auditoria com IA (Com Fallback e Tolerância a 503)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# Auditoria com IA (Corrigido para SDK google-genai)
+# ---------------------------------------------------------
 def analisar_imagem_com_ia(imagem_pil):
     api_key = None
     if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
@@ -395,36 +398,33 @@ def analisar_imagem_com_ia(imagem_pil):
         img_ia.thumbnail((800, 800), Image.Resampling.BILINEAR)
         buf = io.BytesIO()
         img_ia.save(buf, format="JPEG", quality=75)
-        
-        # Modelos com fallback caso o cluster principal dê 503
-        modelos_fallback = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+
         ultimo_erro = ""
+        # 3 tentativas automáticas em caso de sobrecarga (503/429)
+        for tentativa in range(3):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
+                        prompt
+                    ],
+                    config={"response_mime_type": "application/json"}
+                )
+                return json.loads(response.text), None
+            except Exception as e:
+                ultimo_erro = str(e)
+                if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower() or "429" in ultimo_erro:
+                    time.sleep(1.5 * (tentativa + 1))
+                    continue
+                break
 
-        for mod in modelos_fallback:
-            for tentativa in range(2):
-                try:
-                    response = client.models.generate_content(
-                        model=mod,
-                        contents=[
-                            types.Part.from_bytes(data=buf.getvalue(), mime_type="image/jpeg"),
-                            prompt
-                        ],
-                        config={"response_mime_type": "application/json"}
-                    )
-                    return json.loads(response.text), None
-                except Exception as e:
-                    ultimo_erro = str(e)
-                    if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower():
-                        time.sleep(1.2)
-                        continue
-                    break
-
-        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})."
+        return None, f"Instabilidade temporária na API: {ultimo_erro}"
     except Exception as e:
-        return None, f"Instabilidade na rede de IA: {str(e)}"
+        return None, f"Erro no serviço de IA: {str(e)}"
 
 # ---------------------------------------------------------
-# Assistente de Enquadramento por Texto / Voz (Mais Rápido e Estável)
+# Assistente de Enquadramento por Texto / Voz
 # ---------------------------------------------------------
 def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
     api_key = None
@@ -465,29 +465,27 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs):
         }}
         """
 
-        modelos_fallback = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
         ultimo_erro = ""
+        # 3 tentativas automáticas em caso de sobrecarga (503/429)
+        for tentativa in range(3):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                    config={"response_mime_type": "application/json"}
+                )
+                return json.loads(response.text), None
+            except Exception as e:
+                ultimo_erro = str(e)
+                if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower() or "429" in ultimo_erro:
+                    time.sleep(1.2 * (tentativa + 1))
+                    continue
+                break
 
-        for mod in modelos_fallback:
-            for tentativa in range(2):
-                try:
-                    response = client.models.generate_content(
-                        model=mod,
-                        contents=prompt,
-                        config={"response_mime_type": "application/json"}
-                    )
-                    return json.loads(response.text), None
-                except Exception as e:
-                    ultimo_erro = str(e)
-                    if "503" in ultimo_erro or "overloaded" in ultimo_erro.lower():
-                        time.sleep(1.0)
-                        continue
-                    break
-
-        return None, f"Servidores em alta demanda. Tente novamente em instantes ({ultimo_erro})."
+        return None, f"Instabilidade temporária na API: {ultimo_erro}"
     except Exception as e:
-        return None, f"Erro na análise de texto: {str(e)}"
-
+        return None, f"Erro no enquadramento de texto: {str(e)}"
+    
 # ---------------------------------------------------------
 # Link Direto para WhatsApp
 # ---------------------------------------------------------
