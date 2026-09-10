@@ -33,7 +33,8 @@ except ImportError:
 # ---------------------------------------------------------
 # Configuração de Página e Estilização Universal (Anti-Dark Mode)
 # ---------------------------------------------------------
-st.set_page_config(page_title="VistorIA SST - NR 28", page_icon="🛡️", layout="centered")
+icone_aba = "icon-192.png" if os.path.exists("icon-192.png") else "🛡️"
+st.set_page_config(page_title="VistorIA SST - NR 28", page_icon=icone_aba, layout="centered")
 
 st.markdown("""
 <style>
@@ -495,9 +496,15 @@ def verificar_login():
     st.markdown("<br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 4, 1])
     with col2:
-        st.markdown("""
+        icone_login_html = '<div style="font-size: 2.5rem; margin-bottom: 8px;">🛡️</div>'
+        if os.path.exists("icon-192.png"):
+            with open("icon-192.png", "rb") as f_ico:
+                b64_ico_login = base64.b64encode(f_ico.read()).decode("utf-8")
+            icone_login_html = f'<img src="data:image/png;base64,{b64_ico_login}" style="width: 72px; height: 72px; border-radius: 16px; margin-bottom: 8px;" />'
+
+        st.markdown(f"""
         <div style="text-align: center; margin-bottom: 24px;">
-            <div style="font-size: 2.5rem; margin-bottom: 8px;">🛡️</div>
+            {icone_login_html}
             <h2 style="margin: 0; color: #0F172A; font-weight: 800;">VistorIA SST</h2>
             <p style="color: #64748B; font-size: 0.88rem; margin-top: 4px;">Auditoria Pericial & Gestão de Riscos NR 28</p>
         </div>
@@ -1363,7 +1370,6 @@ if "visao_atual" not in st.session_state:
 if "passo_vistoria" not in st.session_state:
     st.session_state.passo_vistoria = 1
 
-# Carrega logo da consultoria salva no banco
 if "logo_consultoria_salva" not in st.session_state:
     st.session_state.logo_consultoria_salva = carregar_logo_consultoria_db()
 
@@ -1413,16 +1419,27 @@ with st.sidebar:
         st.session_state.perfil_logado = ""
         st.rerun()
 
-    # Exibe logo ativa no rodapé da sidebar apenas como confirmação visual
+    # Confirmação visual discreta da consultoria na sidebar
     if st.session_state.logo_consultoria_salva:
         st.markdown("---")
-        st.caption("Emitente Credenciado:")
+        st.caption("Consultoria SST Credenciada:")
         st.image(st.session_state.logo_consultoria_salva, width=130)
 
-# BOTÃO DE ATALHO DIRETO NO TOPO DA PÁGINA (HEADER)
+# CABEÇALHO SUPERIOR DA PÁGINA (COM ÍCONE OFICIAL)
 c_topo1, c_topo2 = st.columns([3, 1.4])
 with c_topo1:
-    st.markdown("<h3 style='margin:0; padding:0;'>🛡️ VistorIA SST</h3>", unsafe_allow_html=True)
+    if os.path.exists("icon-192.png"):
+        with open("icon-192.png", "rb") as f_top:
+            b64_top = base64.b64encode(f_top.read()).decode("utf-8")
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="data:image/png;base64,{b64_top}" style="width: 34px; height: 34px; border-radius: 8px;" />
+            <h3 style="margin: 0; padding: 0; font-size: 1.35rem; color: #0F172A;">VistorIA SST</h3>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("<h3 style='margin:0; padding:0;'>🛡️ VistorIA SST</h3>", unsafe_allow_html=True)
+
 with c_topo2:
     if eh_admin:
         if st.session_state.visao_atual == "vistoria":
