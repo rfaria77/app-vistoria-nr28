@@ -6,6 +6,7 @@ import uuid
 import sqlite3
 import datetime
 import urllib.parse
+import base64
 import pandas as pd
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
@@ -22,6 +23,13 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as ReportLabImage, Table, TableStyle
 from reportlab.pdfgen import canvas
 
+# Importação condicional do Supabase
+try:
+    from supabase import create_client, Client
+    HAS_SUPABASE = True
+except ImportError:
+    HAS_SUPABASE = False
+
 # ---------------------------------------------------------
 # Configuração de Página e Estilização Universal (Anti-Dark Mode)
 # ---------------------------------------------------------
@@ -29,13 +37,11 @@ st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layou
 
 st.markdown("""
 <style>
-    /* Ocultar elementos padrão do Streamlit */
     #MainMenu, header, footer, [data-testid="stToolbar"] {
         visibility: hidden !important;
         display: none !important;
     }
     
-    /* Trava elástica e fundo geral forçado */
     html, body, [data-testid="stAppViewContainer"], .stApp {
         overscroll-behavior-y: none !important;
         overscroll-behavior: none !important;
@@ -44,7 +50,6 @@ st.markdown("""
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     }
 
-    /* FORÇAR CONTRASTE DE TODOS OS TEXTOS NATIVOS E LABELS DO STREAMLIT */
     .stMarkdown, .stMarkdown p, .stMarkdown span, .stMarkdown strong, .stMarkdown b,
     [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span,
     label, [data-testid="stRadio"] label, [data-testid="stRadio"] div,
@@ -53,14 +58,12 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* Espaçamento da área útil */
     .block-container {
         padding-top: 1.0rem !important;
         padding-bottom: 3.5rem !important;
         max-width: 720px !important;
     }
 
-    /* Stepper Visual */
     .stepper-container {
         display: flex;
         justify-content: space-between;
@@ -83,7 +86,6 @@ st.markdown("""
         color: #2563EB !important;
     }
 
-    /* Cards de KPI Financeiro */
     .kpi-container {
         display: flex;
         gap: 12px;
@@ -123,7 +125,6 @@ st.markdown("""
         margin-top: 3px;
     }
 
-    /* Badges de Status */
     .badge-pill {
         display: inline-flex;
         align-items: center;
@@ -139,7 +140,6 @@ st.markdown("""
     .badge-success { background-color: #DCFCE7; color: #166534 !important; }
     .badge-info { background-color: #DBEAFE; color: #1E40AF !important; }
 
-    /* Banners Informativos */
     .ai-assistant-card {
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%) !important;
         border: 1px solid #BFDBFE !important;
@@ -155,7 +155,6 @@ st.markdown("""
         margin-bottom: 14px;
     }
 
-    /* Cartões de Enquadramento Legal */
     .norma-card {
         background-color: #FFFFFF !important;
         border-left: 5px solid #2563EB !important;
@@ -169,7 +168,6 @@ st.markdown("""
         border-bottom: 1px solid #E2E8F0;
     }
 
-    /* Expanders Estilizados */
     div[data-testid="stExpander"] {
         background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
@@ -182,7 +180,6 @@ st.markdown("""
         font-weight: 700 !important;
     }
 
-    /* Forçar cores claras nos campos de digitação */
     div[data-baseweb="input"] {
         background-color: #FFFFFF !important;
         border: 1px solid #CBD5E1 !important;
@@ -200,7 +197,6 @@ st.markdown("""
         color: #0F172A !important;
     }
 
-    /* Forçar cores claras nos Selectboxes */
     div[data-baseweb="select"] {
         background-color: #FFFFFF !important;
         border-radius: 10px !important;
@@ -211,7 +207,6 @@ st.markdown("""
         word-break: break-word !important;
     }
 
-    /* Botões */
     .stButton > button {
         border-radius: 10px !important;
         min-height: 48px !important;
@@ -222,11 +217,32 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# Banco de Dados Local (SQLite)
+# Conexão com Supabase e Fallback SQLite
 # ---------------------------------------------------------
 DB_FILE = "sst_database.db"
 
-def init_db():
+@st.cache_resource
+def init_supabase():
+    url = None
+    key = None
+    if hasattr(st, "secrets"):
+        url = st.secrets.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_KEY")
+    if not url:
+        url = os.environ.get("SUPABASE_URL")
+    if not key:
+        key = os.environ.get("SUPABASE_KEY")
+
+    if HAS_SUPABASE and url and key:
+        try:
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None
+
+supabase_client = init_supabase()
+
+def init_db_local():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
@@ -268,90 +284,81 @@ def init_db():
             pdf_bytes BLOB NOT NULL
         )
     """)
-    c.execute("PRAGMA table_info(relatorios)")
-    colunas_existentes = [col[1] for col in c.fetchall()]
-    if "economia_min" not in colunas_existentes:
-        c.execute("ALTER TABLE relatorios ADD COLUMN economia_min REAL NOT NULL DEFAULT 0")
-    if "economia_max" not in colunas_existentes:
-        c.execute("ALTER TABLE relatorios ADD COLUMN economia_max REAL NOT NULL DEFAULT 0")
-
     c.execute("SELECT usuario FROM usuarios WHERE usuario = 'admin'")
     if not c.fetchone():
         c.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", ("admin", "1234", "Admin"))
     conn.commit()
     conn.close()
 
-init_db()
+init_db_local()
 
 # ---------------------------------------------------------
-# Gestão de Rascunho Automático
+# Funções de Autenticação Híbridas (Nuvem + Local)
 # ---------------------------------------------------------
-def salvar_rascunho_db(usuario, empresa, inspetor, faixa_func, lista_evidencias):
+def autenticar_usuario(usuario, senha):
+    if supabase_client:
+        try:
+            res = supabase_client.table("usuarios").select("usuario, perfil").eq("usuario", usuario).eq("senha", senha).execute()
+            if res.data:
+                return res.data[0]["usuario"], res.data[0]["perfil"]
+        except Exception:
+            pass
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    evidencias_serializaveis = []
-    for ev in lista_evidencias:
-        item_copia = dict(ev)
-        img_buffers = []
-        for img in item_copia.get("imagens", []):
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=70)
-            img_buffers.append(buf.getvalue().hex())
-        item_copia["imagens_hex"] = img_buffers
-        if "imagens" in item_copia:
-            del item_copia["imagens"]
-        evidencias_serializaveis.append(item_copia)
-
-    dados_json = json.dumps(evidencias_serializaveis)
-    agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    c.execute("""
-        INSERT INTO rascunhos (usuario, empresa, inspetor, faixa_func, dados_json, atualizado_em)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(usuario) DO UPDATE SET
-            empresa=excluded.empresa,
-            inspetor=excluded.inspetor,
-            faixa_func=excluded.faixa_func,
-            dados_json=excluded.dados_json,
-            atualizado_em=excluded.atualizado_em
-    """, (usuario, empresa, inspetor, faixa_func, dados_json, agora))
-    conn.commit()
-    conn.close()
-
-def carregar_rascunho_db(usuario):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT empresa, inspetor, faixa_func, dados_json, atualizado_em FROM rascunhos WHERE usuario = ?", (usuario,))
+    c.execute("SELECT usuario, perfil FROM usuarios WHERE usuario = ? AND senha = ?", (usuario, senha))
     row = c.fetchone()
     conn.close()
-    if not row:
-        return None
-    empresa, inspetor, faixa_func, dados_json, atualizado_em = row
-    itens = json.loads(dados_json)
-    for it in itens:
-        imgs_pil = []
-        for hex_str in it.get("imagens_hex", []):
-            raw_bytes = bytes.fromhex(hex_str)
-            imgs_pil.append(Image.open(io.BytesIO(raw_bytes)))
-        it["imagens"] = imgs_pil
-        if "imagens_hex" in it:
-            del it["imagens_hex"]
-    return {
-        "empresa": empresa,
-        "inspetor": inspetor,
-        "faixa_func": faixa_func,
-        "evidencias": itens,
-        "atualizado_em": atualizado_em
-    }
+    return row
 
-def limpar_rascunho_db(usuario):
+def listar_usuarios():
+    if supabase_client:
+        try:
+            res = supabase_client.table("usuarios").select("usuario, perfil").order("usuario").execute()
+            if res.data:
+                return [(u["usuario"], u["perfil"]) for u in res.data]
+        except Exception:
+            pass
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("DELETE FROM rascunhos WHERE usuario = ?", (usuario,))
+    c.execute("SELECT usuario, perfil FROM usuarios ORDER BY usuario ASC")
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+def criar_usuario_db(usuario, senha, perfil):
+    erro_supa = None
+    if supabase_client:
+        try:
+            supabase_client.table("usuarios").insert({"usuario": usuario, "senha": senha, "perfil": perfil}).execute()
+        except Exception as e:
+            erro_supa = str(e)
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (usuario, senha, perfil))
+        conn.commit()
+        conn.close()
+        return True, "Usuário cadastrado com sucesso!"
+    except sqlite3.IntegrityError:
+        return False, "Nome de usuário já existe!"
+
+def excluir_usuario_db(usuario):
+    if supabase_client:
+        try:
+            supabase_client.table("usuarios").delete().eq("usuario", usuario).execute()
+        except Exception:
+            pass
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM usuarios WHERE usuario = ?", (usuario,))
     conn.commit()
     conn.close()
 
 # ---------------------------------------------------------
-# Gestão de Sessão (Token de 7 Dias)
+# Gestão de Sessão (Token)
 # ---------------------------------------------------------
 def criar_sessao(usuario, perfil):
     token = uuid.uuid4().hex
@@ -386,66 +393,6 @@ def revogar_token_sessao(token):
     c.execute("DELETE FROM sessoes WHERE token = ?", (token,))
     conn.commit()
     conn.close()
-
-def autenticar_usuario(usuario, senha):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT usuario, perfil FROM usuarios WHERE usuario = ? AND senha = ?", (usuario, senha))
-    row = c.fetchone()
-    conn.close()
-    return row
-
-def listar_usuarios():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT usuario, perfil FROM usuarios ORDER BY usuario ASC")
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
-def criar_usuario_db(usuario, senha, perfil):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("INSERT INTO usuarios (usuario, senha, perfil) VALUES (?, ?, ?)", (usuario, senha, perfil))
-        conn.commit()
-        conn.close()
-        return True, "Usuário cadastrado com sucesso!"
-    except sqlite3.IntegrityError:
-        return False, "Nome de usuário já existe!"
-
-def excluir_usuario_db(usuario):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("DELETE FROM usuarios WHERE usuario = ?", (usuario,))
-    conn.commit()
-    conn.close()
-
-def salvar_relatorio_db(data_str, empresa, inspetor, total_itens, multa_min, multa_max, econ_min, econ_max, pdf_bytes):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO relatorios (data, empresa, inspetor, total_itens, multa_min, multa_max, economia_min, economia_max, pdf_bytes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (data_str, empresa, inspetor, total_itens, multa_min, multa_max, econ_min, econ_max, pdf_bytes))
-    conn.commit()
-    conn.close()
-
-def listar_relatorios():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT id, data, empresa, inspetor, total_itens, multa_min, multa_max, economia_min, economia_max FROM relatorios ORDER BY id DESC")
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
-def obter_pdf_relatorio(relatorio_id):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT pdf_bytes, empresa, data FROM relatorios WHERE id = ?", (relatorio_id,))
-    row = c.fetchone()
-    conn.close()
-    return row
 
 def verificar_login():
     if "autenticado" not in st.session_state:
@@ -496,6 +443,186 @@ def verificar_login():
     return False
 
 # ---------------------------------------------------------
+# Gestão de Rascunhos Híbrida (Nuvem + Local)
+# ---------------------------------------------------------
+def salvar_rascunho_db(usuario, empresa, inspetor, faixa_func, lista_evidencias):
+    evidencias_serializaveis = []
+    for ev in lista_evidencias:
+        item_copia = dict(ev)
+        img_buffers = []
+        for img in item_copia.get("imagens", []):
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=70)
+            img_buffers.append(buf.getvalue().hex())
+        item_copia["imagens_hex"] = img_buffers
+        if "imagens" in item_copia:
+            del item_copia["imagens"]
+        evidencias_serializaveis.append(item_copia)
+
+    dados_json = json.dumps(evidencias_serializaveis)
+    agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    # 1. Salvar no Supabase se houver conexão
+    if supabase_client:
+        try:
+            supabase_client.table("rascunhos").upsert({
+                "usuario": usuario,
+                "empresa": empresa,
+                "inspetor": inspetor,
+                "faixa_func": faixa_func,
+                "dados_json": evidencias_serializaveis
+            }).execute()
+        except Exception:
+            pass
+
+    # 2. Salvar no SQLite local
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO rascunhos (usuario, empresa, inspetor, faixa_func, dados_json, atualizado_em)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(usuario) DO UPDATE SET
+            empresa=excluded.empresa,
+            inspetor=excluded.inspetor,
+            faixa_func=excluded.faixa_func,
+            dados_json=excluded.dados_json,
+            atualizado_em=excluded.atualizado_em
+    """, (usuario, empresa, inspetor, faixa_func, dados_json, agora))
+    conn.commit()
+    conn.close()
+
+def carregar_rascunho_db(usuario):
+    # 1. Tentar carregar da nuvem
+    if supabase_client:
+        try:
+            res = supabase_client.table("rascunhos").select("*").eq("usuario", usuario).execute()
+            if res.data:
+                item = res.data[0]
+                itens = item.get("dados_json", [])
+                if isinstance(itens, str):
+                    itens = json.loads(itens)
+                for it in itens:
+                    imgs_pil = []
+                    for hex_str in it.get("imagens_hex", []):
+                        raw_bytes = bytes.fromhex(hex_str)
+                        imgs_pil.append(Image.open(io.BytesIO(raw_bytes)))
+                    it["imagens"] = imgs_pil
+                return {
+                    "empresa": item.get("empresa", ""),
+                    "inspetor": item.get("inspetor", ""),
+                    "faixa_func": item.get("faixa_func", ""),
+                    "evidencias": itens,
+                    "atualizado_em": "Nuvem (Supabase)"
+                }
+        except Exception:
+            pass
+
+    # 2. Fallback SQLite local
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT empresa, inspetor, faixa_func, dados_json, atualizado_em FROM rascunhos WHERE usuario = ?", (usuario,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return None
+    empresa, inspetor, faixa_func, dados_json, atualizado_em = row
+    itens = json.loads(dados_json)
+    for it in itens:
+        imgs_pil = []
+        for hex_str in it.get("imagens_hex", []):
+            raw_bytes = bytes.fromhex(hex_str)
+            imgs_pil.append(Image.open(io.BytesIO(raw_bytes)))
+        it["imagens"] = imgs_pil
+        if "imagens_hex" in it:
+            del it["imagens_hex"]
+    return {
+        "empresa": empresa,
+        "inspetor": inspetor,
+        "faixa_func": faixa_func,
+        "evidencias": itens,
+        "atualizado_em": atualizado_em
+    }
+
+def limpar_rascunho_db(usuario):
+    if supabase_client:
+        try:
+            supabase_client.table("rascunhos").delete().eq("usuario", usuario).execute()
+        except Exception:
+            pass
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("DELETE FROM rascunhos WHERE usuario = ?", (usuario,))
+    conn.commit()
+    conn.close()
+
+# ---------------------------------------------------------
+# Gestão de Relatórios Finalizados (Nuvem + Local)
+# ---------------------------------------------------------
+def salvar_relatorio_db(data_str, empresa, inspetor, total_itens, multa_min, multa_max, econ_min, econ_max, pdf_bytes):
+    pdf_b64 = base64.b64encode(pdf_bytes).decode('utf-8')
+    if supabase_client:
+        try:
+            supabase_client.table("relatorios").insert({
+                "data": data_str,
+                "empresa": empresa,
+                "inspetor": inspetor,
+                "total_itens": total_itens,
+                "multa_min": float(multa_min),
+                "multa_max": float(multa_max),
+                "economia_min": float(econ_min),
+                "economia_max": float(econ_max),
+                "pdf_base64": pdf_b64
+            }).execute()
+        except Exception:
+            pass
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO relatorios (data, empresa, inspetor, total_itens, multa_min, multa_max, economia_min, economia_max, pdf_bytes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (data_str, empresa, inspetor, total_itens, multa_min, multa_max, econ_min, econ_max, pdf_bytes))
+    conn.commit()
+    conn.close()
+
+def listar_relatorios():
+    if supabase_client:
+        try:
+            res = supabase_client.table("relatorios").select("id, data, empresa, inspetor, total_itens, multa_min, multa_max, economia_min, economia_max").order("id", desc=True).execute()
+            if res.data:
+                return [
+                    (r["id"], r["data"], r["empresa"], r["inspetor"], r["total_itens"], r["multa_min"], r["multa_max"], r["economia_min"], r["economia_max"])
+                    for r in res.data
+                ]
+        except Exception:
+            pass
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT id, data, empresa, inspetor, total_itens, multa_min, multa_max, economia_min, economia_max FROM relatorios ORDER BY id DESC")
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+def obter_pdf_relatorio(relatorio_id):
+    if supabase_client:
+        try:
+            res = supabase_client.table("relatorios").select("pdf_base64, empresa, data").eq("id", relatorio_id).execute()
+            if res.data:
+                item = res.data[0]
+                pdf_bytes = base64.b64decode(item["pdf_base64"])
+                return pdf_bytes, item["empresa"], item["data"]
+        except Exception:
+            pass
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT pdf_bytes, empresa, data FROM relatorios WHERE id = ?", (relatorio_id,))
+    row = c.fetchone()
+    conn.close()
+    return row
+
+# ---------------------------------------------------------
 # Otimização de Imagens e Carimbo Técnico
 # ---------------------------------------------------------
 def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
@@ -523,7 +650,7 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     return img
 
 # ---------------------------------------------------------
-# Auditoria de Foto com Gemini (Online)
+# Auditoria com IA (Gemini Foto)
 # ---------------------------------------------------------
 def analisar_imagem_com_ia(imagem_pil):
     api_key = None
@@ -579,7 +706,7 @@ def analisar_imagem_com_ia(imagem_pil):
         return None, f"Instabilidade na rede: {str(e)}"
 
 # ---------------------------------------------------------
-# Buscador Local 100% Offline (Sem Internet)
+# Buscador Local 100% Offline
 # ---------------------------------------------------------
 def enquadrar_local_offline(descricao_texto, df_base_nrs):
     palavras = [p.lower().strip() for p in descricao_texto.split() if len(p) > 2]
@@ -828,7 +955,7 @@ def gerar_grafico_historico_empresa(df_empresa):
     return buf
 
 # ---------------------------------------------------------
-# Classe Especial de Canvas para Paginação Dinâmica (Corrigida)
+# Classe de Canvas para Paginação Dinâmica (Corrigida)
 # ---------------------------------------------------------
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -862,7 +989,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 # ---------------------------------------------------------
-# Gerador de Relatório PDF Completo (Design Pericial)
+# Gerador de Relatório PDF Completo
 # ---------------------------------------------------------
 def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     buffer = io.BytesIO()
@@ -1075,7 +1202,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
-    # 6. Plano de Ação com Descrição Legal
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -1119,7 +1245,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     else:
         elementos.append(Paragraph("<font color='#059669'><b>Parabéns! Não foram identificadas não conformidades nesta vistoria. Nenhum plano de ação corretivo necessário.</b></font>", cell_value))
 
-    # 7. Termo de Encerramento e Assinaturas Periciais
     elementos.append(Spacer(1, 24))
     elementos.append(Paragraph("<b>7. Termo de Ciência e Notificação Pericial</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>As partes declaram ciência dos fatos registrados neste relatório técnico e comprometem-se a cumprir os prazos e ações estabelecidos no Plano de Ação:</i>", sub_style))
@@ -1155,8 +1280,14 @@ lon_capturada = loc_atual['coords']['longitude'] if (loc_atual and 'coords' in l
 
 with st.sidebar:
     st.markdown(f"👤 **{st.session_state.usuario_logado}** (`{st.session_state.perfil_logado}`)")
+    
+    if supabase_client:
+        st.caption("🟢 Conectado ao Supabase (Cloud)")
+    else:
+        st.caption("🟡 Operando em SQLite Local")
+
     if lat_capturada and lon_capturada:
-        st.caption(f"📍 GPS Ativo: `{lat_capturada:.4f}, {lon_capturada:.4f}`")
+        st.caption(f"📍 GPS: `{lat_capturada:.4f}, {lon_capturada:.4f}`")
     else:
         st.caption("📍 GPS: Aguardando sinal...")
 
@@ -1166,7 +1297,7 @@ with st.sidebar:
     st.markdown("---")
     st.session_state.modo_offline = st.toggle("📴 Modo Campo / Offline", value=st.session_state.modo_offline)
     if st.session_state.modo_offline:
-        st.caption("⚡ Busca local ativa no dispositivo. Chamadas em nuvem desativadas.")
+        st.caption("⚡ Busca local ativa. Nuvem pausada.")
 
     if st.button("🚪 Encerrar Sessão", use_container_width=True):
         token_atual = st.query_params.get("session")
@@ -1382,14 +1513,14 @@ elif aba_selecionada == "📋 Vistoria em Campo":
 
     if st.session_state.evidencias:
         if st.session_state.modo_offline:
-            st.info("📴 Você está no Modo Campo (Offline). Quando retornar a um local com sinal, desative o modo offline no menu lateral para sincronizar e reavaliar seus apontamentos com a IA.")
+            st.info("📴 Você está no Modo Campo (Offline). Quando retornar a um local com sinal, desative o modo offline no menu lateral para sincronizar seus dados.")
         else:
             col_sync1, col_sync2 = st.columns([2.5, 1])
             with col_sync1:
-                st.markdown("<p style='margin:0; font-size:0.85rem; color:#1E293B;'>Deseja aprimorar todos os apontamentos salvos com a IA da nuvem?</p>", unsafe_allow_html=True)
+                st.markdown("<p style='margin:0; font-size:0.85rem; color:#1E293B;'>Deseja sincronizar e refinar todos os itens com a IA?</p>", unsafe_allow_html=True)
             with col_sync2:
                 if st.button("🔄 Sincronizar Tudo", use_container_width=True, type="secondary"):
-                    with st.spinner("Refinando laudo com inteligência artificial..."):
+                    with st.spinner("Sincronizando com Supabase e IA..."):
                         itens_atualizados = 0
                         for it in st.session_state.evidencias:
                             res, _ = sugerir_enquadramento_por_texto(it["descricao_cenario"], df_nr_base, modo_offline=False)
