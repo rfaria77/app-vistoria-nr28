@@ -33,7 +33,7 @@ except ImportError:
 # ---------------------------------------------------------
 # Configuração de Página e Estilização Universal (Anti-Dark Mode)
 # ---------------------------------------------------------
-st.set_page_config(page_title="Vistoria SST - NR 28", page_icon="🛡️", layout="centered")
+st.set_page_config(page_title="VistorIA SST - NR 28", page_icon="🛡️", layout="centered")
 
 st.markdown("""
 <style>
@@ -449,8 +449,8 @@ def verificar_login():
         st.markdown("""
         <div style="text-align: center; margin-bottom: 24px;">
             <div style="font-size: 2.5rem; margin-bottom: 8px;">🛡️</div>
-            <h2 style="margin: 0; color: #0F172A; font-weight: 800;">Vistoria SST</h2>
-            <p style="color: #64748B; font-size: 0.88rem; margin-top: 4px;">Auditoria e Gestão de Riscos NR 28</p>
+            <h2 style="margin: 0; color: #0F172A; font-weight: 800;">VistorIA SST</h2>
+            <p style="color: #64748B; font-size: 0.88rem; margin-top: 4px;">Auditoria Pericial & Gestão de Riscos NR 28</p>
         </div>
         """, unsafe_allow_html=True)
         with st.form("form_login"):
@@ -839,13 +839,13 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs, modo_offlin
 
 def gerar_link_whatsapp(telefone, empresa, tot_multa, tot_econ, qtd_nc):
     msg = (
-        f"📋 *RELATÓRIO PRELIMINAR DE VISTORIA SST (NR 28)*\n\n"
+        f"📋 *VistorIA SST — RELATÓRIO PRELIMINAR (NR 28)*\n\n"
         f"🏢 *Empresa:* {empresa}\n"
         f"📅 *Data:* {datetime.date.today().strftime('%d/%m/%Y')}\n"
         f"⚠️ *Não Conformidades:* {qtd_nc} apontamento(s)\n"
         f"💰 *Passivo em Risco:* {formata_brl(tot_multa)}\n"
         f"🛡️ *Economia Gerada (Risco Evitado):* {formata_brl(tot_econ)}\n\n"
-        f"_O laudo técnico com o Plano de Ação detalhado já está disponível._"
+        f"_O laudo pericial com o Plano de Ação detalhado já está disponível._"
     )
     telefone_limpo = "".join([c for c in telefone if c.isdigit()])
     return f"https://api.whatsapp.com/send?phone={telefone_limpo}&text={urllib.parse.quote(msg)}"
@@ -970,7 +970,7 @@ def gerar_grafico_historico_empresa(df_empresa):
     return buf
 
 # ---------------------------------------------------------
-# Canvas com Paginação Dinâmica
+# Canvas com Paginação e Assinatura VistorIA no Rodapé
 # ---------------------------------------------------------
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -991,22 +991,35 @@ class NumberedCanvas(canvas.Canvas):
 
     def draw_page_decorations(self, page_count):
         self.saveState()
-        self.setFont("Helvetica", 8)
+        self.setFont("Helvetica", 7.5)
         self.setFillColor(colors.HexColor("#64748B"))
-        texto_esquerda = "Laudo Técnico de Auditoria SST & Enquadramento NR 28"
-        texto_direita = f"Página {self._pageNumber} de {page_count}"
         
+        # Linha separadora do rodapé
         self.setStrokeColor(colors.HexColor("#CBD5E1"))
         self.setLineWidth(0.5)
-        self.line(36, 26, A4[0] - 36, 26)
-        self.drawString(36, 16, texto_esquerda)
-        self.drawRightString(A4[0] - 36, 16, texto_direita)
+        self.line(36, 28, A4[0] - 36, 28)
+        
+        # Logo do VistorIA SST discreta no rodapé
+        caminho_logo_app = "logo.png" if os.path.exists("logo.png") else ("icon-192.png" if os.path.exists("icon-192.png") else None)
+        x_texto = 36
+        if caminho_logo_app:
+            try:
+                self.drawImage(caminho_logo_app, 36, 12, width=32, height=14, preserveAspectRatio=True, mask='auto')
+                x_texto = 74
+            except Exception:
+                pass
+        
+        texto_esquerda = "Emitido via VistorIA SST — Auditoria Pericial & Gestão NR 28"
+        texto_direita = f"Página {self._pageNumber} de {page_count}"
+        
+        self.drawString(x_texto, 15, texto_esquerda)
+        self.drawRightString(A4[0] - 36, 15, texto_direita)
         self.restoreState()
 
 # ---------------------------------------------------------
-# Gerador de Relatório PDF Completo
+# Gerador de Relatório PDF Completo (Logo do Cliente no Cabeçalho)
 # ---------------------------------------------------------
-def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
+def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_cliente_pil=None):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -1019,7 +1032,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     styles = getSampleStyleSheet()
     elementos = []
 
-    titulo_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#0F172A'), leading=18)
+    titulo_style = ParagraphStyle('T1', parent=styles['Heading1'], fontSize=14.5, textColor=colors.HexColor('#0F172A'), leading=17)
     sub_style = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#475569'), leading=11)
 
     cell_label = ParagraphStyle('CellLabel', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.HexColor('#1E293B'), leading=12)
@@ -1030,19 +1043,22 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     cell_td_center = ParagraphStyle('CellTDCenter', parent=styles['Normal'], fontName='Helvetica', fontSize=7.5, textColor=colors.HexColor('#0F172A'), alignment=1, leading=10)
     cell_td_total = ParagraphStyle('CellTDTotal', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8, textColor=colors.HexColor('#0F172A'), alignment=1, leading=10)
 
+    # CABEÇALHO COM A LOGO PRINCIPAL DO CLIENTE AUDITADO
     texto_cabecalho = [
-        Paragraph("Relatório Pericial de Vistoria, Riscos e Conformidades SST", titulo_style),
-        Spacer(1, 4),
-        Paragraph(f"<b>Emissão Forense:</b> {dados_gerais['data']} | <b>Responsável Técnico:</b> {dados_gerais['inspetor']}", sub_style)
+        Paragraph(f"<b>Relatório Pericial de Vistoria, Riscos e Conformidades SST</b>", titulo_style),
+        Spacer(1, 3),
+        Paragraph(f"<b>Empresa Inspecionada:</b> {dados_gerais['empresa_cliente']}", ParagraphStyle('EmpT', parent=styles['Normal'], fontSize=9.5, fontName='Helvetica-Bold', textColor=colors.HexColor('#1E3A8A'))),
+        Paragraph(f"<b>Emissão:</b> {dados_gerais['data']} | <b>Responsável Técnico:</b> {dados_gerais['inspetor']}", sub_style)
     ]
 
-    if logo_pil is not None:
+    if logo_cliente_pil is not None:
         logo_buf = io.BytesIO()
-        logo_pil.save(logo_buf, format='PNG')
+        logo_cliente_pil.save(logo_buf, format='PNG')
         logo_buf.seek(0)
-        img_logo = ReportLabImage(logo_buf, width=110, height=48)
-        cabecalho_tabela = [[img_logo, texto_cabecalho]]
-        t_header = Table(cabecalho_tabela, colWidths=[120, 403])
+        # Logo do cliente em tamanho de destaque principal
+        img_logo_cliente = ReportLabImage(logo_buf, width=125, height=52)
+        cabecalho_tabela = [[img_logo_cliente, texto_cabecalho]]
+        t_header = Table(cabecalho_tabela, colWidths=[135, 388])
         t_header.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('LEFTPADDING', (1, 0), (1, 0), 10),
@@ -1217,6 +1233,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
+    # 6. Plano de Ação
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -1260,6 +1277,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     else:
         elementos.append(Paragraph("<font color='#059669'><b>Parabéns! Não foram identificadas não conformidades nesta vistoria. Nenhum plano de ação corretivo necessário.</b></font>", cell_value))
 
+    # 7. Termo de Ciência e Assinaturas
     elementos.append(Spacer(1, 24))
     elementos.append(Paragraph("<b>7. Termo de Ciência e Notificação Pericial</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>As partes declaram ciência dos fatos registrados neste relatório técnico e comprometem-se a cumprir os prazos e ações estabelecidos no Plano de Ação:</i>", sub_style))
@@ -1346,20 +1364,16 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.subheader("Logomarca do Laudo")
-    logo_upload = st.file_uploader("Upload (PNG/JPG):", type=["png", "jpg", "jpeg"])
-    logo_para_relatorio = None
-    if logo_upload:
-        logo_para_relatorio = Image.open(logo_upload)
-        st.image(logo_para_relatorio, caption="Logo Ativa", width=140)
-    elif os.path.exists("logo.png"):
-        logo_para_relatorio = Image.open("logo.png")
-        st.image(logo_para_relatorio, caption="Logo padrão", width=140)
+    st.subheader("Logo do Cliente (Cabeçalho)")
+    logo_cliente_upload = st.file_uploader("Upload da Logo do Cliente:", type=["png", "jpg", "jpeg"], key="logo_cliente_sidebar")
+    if logo_cliente_upload:
+        st.session_state.logo_cliente_atual = Image.open(logo_cliente_upload)
+        st.image(st.session_state.logo_cliente_atual, caption="Logo do Cliente no Laudo", width=140)
 
 # BOTÃO DE ATALHO DIRETO NO TOPO DA PÁGINA (HEADER)
 c_topo1, c_topo2 = st.columns([3, 1.4])
 with c_topo1:
-    st.markdown("<h3 style='margin:0; padding:0;'>🛡️ Vistoria SST (NR 28)</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin:0; padding:0;'>🛡️ VistorIA SST</h3>", unsafe_allow_html=True)
 with c_topo2:
     if eh_admin:
         if st.session_state.visao_atual == "vistoria":
@@ -1539,6 +1553,8 @@ else:
         st.session_state.editando_indice = None
     if "abrir_camera" not in st.session_state:
         st.session_state.abrir_camera = False
+    if "logo_cliente_atual" not in st.session_state:
+        st.session_state.logo_cliente_atual = None
 
     df_empresas_cad = listar_empresas_db()
     lista_nomes_empresas = df_empresas_cad["nome"].tolist() if not df_empresas_cad.empty else ["Construtora Exemplo Ltda"]
@@ -1582,13 +1598,13 @@ else:
             st.rerun()
 
     # ---------------------------------------------------------
-    # PÁGINA 1: IDENTIFICAÇÃO DA EMPRESA E CADASTRO RÁPIDO
+    # PÁGINA 1: IDENTIFICAÇÃO DA EMPRESA & LOGO DO CLIENTE
     # ---------------------------------------------------------
     if st.session_state.passo_vistoria == 1:
         st.markdown("### 1️⃣ Identificação da Empresa & Vistoria")
         st.caption("Selecione a empresa ou cadastre uma nova diretamente abaixo.")
 
-        # BOTÃO PARA CADASTRAR NOVA EMPRESA CASO NÃO ESTEJA NA LISTA
+        # CADASTRO RÁPIDO DE EMPRESA
         with st.expander("➕ Cadastrar Nova Empresa (se não estiver na lista)", expanded=False):
             with st.form("form_cad_empresa_rapido"):
                 st.markdown("**Cadastrar Novo Cliente:**")
@@ -1622,7 +1638,6 @@ else:
         empresa_selecionada = st.selectbox("Selecione a Empresa Auditada:", lista_nomes_empresas, index=idx_emp_padrao)
         st.session_state.empresa_selecionada = empresa_selecionada
 
-        # Puxa dados automáticos cadastrados
         dados_emp = df_empresas_cad[df_empresas_cad["nome"] == empresa_selecionada]
         faixa_sugerida = dados_emp.iloc[0]["faixa_func"] if not dados_emp.empty else "26 a 50"
         wpp_sugerido = dados_emp.iloc[0]["contato_wpp"] if not dados_emp.empty else ""
@@ -1640,6 +1655,15 @@ else:
             st.session_state.faixa_func_selecionada = faixa_func
 
         st.session_state.contato_wpp_selecionado = st.text_input("WhatsApp do Gestor para envio do laudo:", value=wpp_sugerido)
+
+        # UPLOAD DA LOGO DO CLIENTE ESPECÍFICA PARA O LAUDO
+        st.markdown("**Logomarca do Cliente (Cabeçalho do Laudo):**")
+        upload_logo_c = st.file_uploader("Selecione a logo da empresa inspecionada (PNG/JPG):", type=["png", "jpg", "jpeg"], key="upload_logo_cliente_passo1")
+        if upload_logo_c:
+            st.session_state.logo_cliente_atual = Image.open(upload_logo_c)
+            st.image(st.session_state.logo_cliente_atual, caption="Logo Principal do Cliente Selecionada", width=180)
+        elif st.session_state.logo_cliente_atual:
+            st.image(st.session_state.logo_cliente_atual, caption="Logo Principal do Cliente Ativa", width=180)
 
         relatorios_salvos = listar_relatorios()
         if relatorios_salvos:
@@ -1964,6 +1988,7 @@ else:
         inspetor = st.session_state.get("inspetor_nome", f"{st.session_state.usuario_logado.capitalize()} (SST)")
         faixa_func = st.session_state.get("faixa_func_selecionada", "26 a 50")
         wpp_contato = st.session_state.get("contato_wpp_selecionado", "")
+        logo_cliente_relatorio = st.session_state.get("logo_cliente_atual", None)
 
         if not st.session_state.evidencias:
             st.warning("Nenhum apontamento foi registrado nesta vistoria ainda.")
@@ -2010,7 +2035,7 @@ else:
                 "data": data_hoje
             }
 
-            pdf_buffer = gerar_pdf_completo(dados_relatorio, st.session_state.evidencias, logo_pil=logo_para_relatorio)
+            pdf_buffer = gerar_pdf_completo(dados_relatorio, st.session_state.evidencias, logo_cliente_pil=logo_cliente_relatorio)
             pdf_bytes_final = pdf_buffer.getvalue()
 
             c_sv, c_bx = st.columns(2)
