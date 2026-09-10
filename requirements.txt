@@ -6,3 +6,4 @@ matplotlib
 streamlit-js-eval
 google-genai
 groq
+supabase
