@@ -246,6 +246,12 @@ def init_db_local():
         )
     """)
     c.execute("""
+        CREATE TABLE IF NOT EXISTS config_sistema (
+            chave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
+        )
+    """)
+    c.execute("""
         CREATE TABLE IF NOT EXISTS rascunhos (
             usuario TEXT PRIMARY KEY,
             empresa TEXT,
@@ -283,6 +289,49 @@ def init_db_local():
     conn.close()
 
 init_db_local()
+
+# ---------------------------------------------------------
+# Gestão da Identidade Visual da Consultoria (Admin)
+# ---------------------------------------------------------
+def salvar_logo_consultoria_db(img_bytes_b64):
+    if supabase_client:
+        try:
+            supabase_client.table("config_sistema").upsert({
+                "chave": "logo_consultoria",
+                "valor": img_bytes_b64
+            }).execute()
+        except Exception:
+            pass
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO config_sistema (chave, valor)
+        VALUES ('logo_consultoria', ?)
+        ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor
+    """, (img_bytes_b64,))
+    conn.commit()
+    conn.close()
+
+def carregar_logo_consultoria_db():
+    if supabase_client:
+        try:
+            res = supabase_client.table("config_sistema").select("valor").eq("chave", "logo_consultoria").execute()
+            if res.data and res.data[0].get("valor"):
+                raw_bytes = base64.b64decode(res.data[0]["valor"])
+                return Image.open(io.BytesIO(raw_bytes))
+        except Exception:
+            pass
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("SELECT valor FROM config_sistema WHERE chave = 'logo_consultoria'")
+    row = c.fetchone()
+    conn.close()
+    if row and row[0]:
+        raw_bytes = base64.b64decode(row[0])
+        return Image.open(io.BytesIO(raw_bytes))
+    return None
 
 # ---------------------------------------------------------
 # Gestão de Empresas Inspecionadas
@@ -840,7 +889,7 @@ def sugerir_enquadramento_por_texto(descricao_problema, df_base_nrs, modo_offlin
 def gerar_link_whatsapp(telefone, empresa, tot_multa, tot_econ, qtd_nc):
     msg = (
         f"📋 *VistorIA SST — RELATÓRIO PRELIMINAR (NR 28)*\n\n"
-        f"🏢 *Empresa:* {empresa}\n"
+        f"🏢 *Empresa Inspecionada:* {empresa}\n"
         f"📅 *Data:* {datetime.date.today().strftime('%d/%m/%Y')}\n"
         f"⚠️ *Não Conformidades:* {qtd_nc} apontamento(s)\n"
         f"💰 *Passivo em Risco:* {formata_brl(tot_multa)}\n"
@@ -994,12 +1043,10 @@ class NumberedCanvas(canvas.Canvas):
         self.setFont("Helvetica", 7.5)
         self.setFillColor(colors.HexColor("#64748B"))
         
-        # Linha separadora do rodapé
         self.setStrokeColor(colors.HexColor("#CBD5E1"))
         self.setLineWidth(0.5)
         self.line(36, 28, A4[0] - 36, 28)
         
-        # Logo do VistorIA SST discreta no rodapé
         caminho_logo_app = "logo.png" if os.path.exists("logo.png") else ("icon-192.png" if os.path.exists("icon-192.png") else None)
         x_texto = 36
         if caminho_logo_app:
@@ -1055,7 +1102,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
         logo_buf = io.BytesIO()
         logo_consultoria_pil.save(logo_buf, format='PNG')
         logo_buf.seek(0)
-        # Logo da consultoria do usuário em destaque
         img_logo_consultoria = ReportLabImage(logo_buf, width=125, height=52)
         cabecalho_tabela = [[img_logo_consultoria, texto_cabecalho]]
         t_header = Table(cabecalho_tabela, colWidths=[135, 388])
@@ -1317,6 +1363,10 @@ if "visao_atual" not in st.session_state:
 if "passo_vistoria" not in st.session_state:
     st.session_state.passo_vistoria = 1
 
+# Carrega logo da consultoria salva no banco
+if "logo_consultoria_salva" not in st.session_state:
+    st.session_state.logo_consultoria_salva = carregar_logo_consultoria_db()
+
 eh_admin = str(st.session_state.get("perfil_logado", "")).strip().lower() == "admin"
 
 # BARRA LATERAL (SIDEBAR)
@@ -1363,16 +1413,11 @@ with st.sidebar:
         st.session_state.perfil_logado = ""
         st.rerun()
 
-    st.markdown("---")
-    # LOGOMARCA DO CONTRATANTE DO APP (CONSULTORIA / PRESTADOR SST)
-    st.subheader("Sua Logomarca (Consultoria SST)")
-    st.caption("Esta logo sairá como destaque principal no cabeçalho do laudo pericial.")
-    logo_consultoria_upload = st.file_uploader("Upload da Logo da sua Empresa:", type=["png", "jpg", "jpeg"], key="upload_logo_consultoria")
-    if logo_consultoria_upload:
-        st.session_state.logo_consultoria_atual = Image.open(logo_consultoria_upload)
-        st.image(st.session_state.logo_consultoria_atual, caption="Logo Ativa no Cabeçalho", width=140)
-    elif "logo_consultoria_atual" not in st.session_state:
-        st.session_state.logo_consultoria_atual = None
+    # Exibe logo ativa no rodapé da sidebar apenas como confirmação visual
+    if st.session_state.logo_consultoria_salva:
+        st.markdown("---")
+        st.caption("Emitente Credenciado:")
+        st.image(st.session_state.logo_consultoria_salva, width=130)
 
 # BOTÃO DE ATALHO DIRETO NO TOPO DA PÁGINA (HEADER)
 c_topo1, c_topo2 = st.columns([3, 1.4])
@@ -1392,15 +1437,41 @@ with c_topo2:
 st.write("")
 
 # =========================================================
-# VISÃO 1: PAINEL ADMINISTRATIVO & CADASTRO DE EMPRESAS
+# VISÃO 1: PAINEL ADMINISTRATIVO & IDENTIDADE VISUAL
 # =========================================================
 if st.session_state.visao_atual == "admin" and eh_admin:
     st.markdown("## ⚙️ Painel Administrativo de Gestão")
-    st.caption("Gestão corporativa de empresas, usuários e histórico pericial")
+    st.caption("Gestão corporativa da sua empresa, clientes inspecionados e histórico pericial")
 
-    tab_empresas, tab_usuarios, tab_relatorios, tab_dashboard = st.tabs([
-        "🏢 Empresas Inspecionadas", "👥 Usuários", "📂 Histórico de Laudos", "📈 Dashboard"
+    tab_identidade, tab_empresas, tab_usuarios, tab_relatorios, tab_dashboard = st.tabs([
+        "🎨 Identidade Visual", "🏢 Empresas Inspecionadas", "👥 Usuários", "📂 Histórico de Laudos", "📈 Dashboard"
     ])
+
+    with tab_identidade:
+        st.markdown("#### 🎨 Logomarca da sua Consultoria / Empresa SST")
+        st.caption("Esta imagem é a marca principal que encabeça todos os relatórios emitidos para seus clientes.")
+
+        col_id_v1, col_id_v2 = st.columns([1.5, 1])
+        with col_id_v1:
+            nova_logo_file = st.file_uploader("Fazer upload da sua Logomarca (PNG ou JPG):", type=["png", "jpg", "jpeg"])
+            if nova_logo_file:
+                img_temp = Image.open(nova_logo_file)
+                st.image(img_temp, caption="Pré-visualização da Nova Logo", width=200)
+                if st.button("💾 Salvar Logo como Padrão do Sistema", type="primary", use_container_width=True):
+                    buf = io.BytesIO()
+                    img_temp.save(buf, format="PNG")
+                    b64_str = base64.b64encode(buf.getvalue()).decode('utf-8')
+                    salvar_logo_consultoria_db(b64_str)
+                    st.session_state.logo_consultoria_salva = img_temp
+                    st.success("✅ Logomarca salva com sucesso no banco de dados!")
+                    st.rerun()
+
+        with col_id_v2:
+            st.markdown("**Logo Atualmente Configurada:**")
+            if st.session_state.logo_consultoria_salva:
+                st.image(st.session_state.logo_consultoria_salva, width=180)
+            else:
+                st.info("Nenhuma logo personalizada cadastrada. O sistema está utilizando o layout textual padrão.")
 
     with tab_empresas:
         st.markdown("#### 🏢 Empresas / Obras Inspecionadas")
@@ -1413,7 +1484,7 @@ if st.session_state.visao_atual == "admin" and eh_admin:
                 cnpj_emp = st.text_input("CNPJ:").strip()
             with c_emp2:
                 faixa_emp = st.selectbox("Faixa de Funcionários (NR 28):", list(TABELA_MULTAS_SEGURANCA.keys()), index=2)
-                wpp_emp = st.text_input("WhatsApp do Gestor:", placeholder="Ex: 34999998888").strip()
+                wpp_emp = st.text_input("WhatsApp do Gestor da Empresa:", placeholder="Ex: 34999998888").strip()
             
             salvar_emp = st.form_submit_button("💾 Salvar / Atualizar Empresa", type="primary", use_container_width=True)
             if salvar_emp:
@@ -1537,7 +1608,7 @@ if st.session_state.visao_atual == "admin" and eh_admin:
                     buf_graf = gerar_grafico_historico_empresa(df_emp)
                     st.image(buf_graf, use_container_width=True)
                 else:
-                    st.info("Esta empresa possui 1 vistoria salva. Realize novas vistorias para acompanhar o histórico.")
+                    st.info("Esta empresa possui 1 vistoria salva. Faça novas inspeções para acompanhar a evolução.")
         else:
             st.info("Nenhuma vistoria salva para exibição do dashboard.")
 
@@ -1981,7 +2052,7 @@ else:
         inspetor = st.session_state.get("inspetor_nome", f"{st.session_state.usuario_logado.capitalize()} (SST)")
         faixa_func = st.session_state.get("faixa_func_selecionada", "26 a 50")
         wpp_contato = st.session_state.get("contato_wpp_selecionado", "")
-        logo_consultoria_para_pdf = st.session_state.get("logo_consultoria_atual", None)
+        logo_consultoria_para_pdf = st.session_state.get("logo_consultoria_salva", None)
 
         if not st.session_state.evidencias:
             st.warning("Nenhum apontamento foi registrado nesta vistoria ainda.")
@@ -1993,7 +2064,7 @@ else:
             tot_multa_max = sum(e['valor_max'] for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
             tot_econ_min = sum(e['valor_min'] for e in st.session_state.evidencias if e['status'] == "Conformidade")
             tot_econ_max = sum(e['valor_max'] for e in st.session_state.evidencias if e['status'] == "Conformidade")
-            qtd_nc = sum(1 for e in lista_evidencias if e['status'] == "Não Conformidade") if 'lista_evidencias' in locals() else sum(1 for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
+            qtd_nc = sum(1 for e in st.session_state.evidencias if e['status'] == "Não Conformidade")
 
             st.markdown(f"""
             <div class="kpi-container">
