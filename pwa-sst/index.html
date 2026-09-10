@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vistoria SST - NR 28</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0F172A">
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      padding: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #F8FAFC;
+      color: #0F172A;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .badge-status {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .online { background: #DCFCE7; color: #166534; }
+    .offline { background: #FEF3C7; color: #92400E; }
+    .kpi-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .kpi-card {
+      flex: 1;
+      background: #FFFFFF;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #E2E8F0;
+    }
+    .kpi-danger { border-top: 3px solid #EF4444; }
+    .kpi-success { border-top: 3px solid #10B981; }
+    .kpi-val { font-size: 1.1rem; font-weight: 800; }
+    .form-group {
+      background: #FFFFFF;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid #E2E8F0;
+      margin-bottom: 12px;
+    }
+    label { display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #2563EB;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button:active { opacity: 0.85; }
+    .btn-secondary { background: #E2E8F0; color: #0F172A; margin-top: 6px; }
+    .photo-preview {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      margin-bottom: 8px;
+    }
+    .photo-thumb {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #CBD5E1;
+    }
+    .item-card {
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h3 style="margin:0;">🛡️ Vistoria SST</h3>
+    <span id="netStatus" class="badge-status online">Online</span>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card kpi-danger">
+      <div style="font-size:0.7rem; color:#64748B;">MULTAS EM RISCO</div>
+      <div id="totMulta" class="kpi-val" style="color:#DC2626;">R$ 0,00</div>
+    </div>
+    <div class="kpi-card kpi-success">
+      <div style="font-size:0.7rem; color:#64748B;">ECONOMIA GERADA</div>
+      <div id="totEcon" class="kpi-val" style="color:#059669;">R$ 0,00</div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Empresa Cliente</label>
+    <input type="text" id="empresa" value="Construtora Exemplo Ltda">
+    <label>Faixa de Funcionários</label>
+    <select id="faixaFunc">
+      <option value="1 a 10">1 a 10</option>
+      <option value="11 a 25">11 a 25</option>
+      <option value="26 a 50" selected>26 a 50</option>
+      <option value="51 a 100">51 a 100</option>
+      <option value="101 a 250">101 a 250</option>
+      <option value="251 a 500">251 a 500</option>
+      <option value="501 a 1000">501 a 1000</option>
+      <option value="Mais de 1000">Mais de 1000</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>⚡ Busca Rápida de Norma (Offline)</label>
+    <input type="text" id="buscaTexto" placeholder="Ex: andaime, serra, altura, epi...">
+    <button type="button" class="btn-secondary" onclick="buscarNormaLocal()">Localizar NR</button>
+
+    <div id="cardNorma" style="display:none; background:#EFF6FF; padding:10px; border-radius:8px; margin:8px 0; border:1px solid #BFDBFE;">
+      <b id="normaTitulo" style="color:#1E40AF;"></b>
+      <p id="normaDesc" style="margin:4px 0; font-size:0.85rem;"></p>
+      <span id="normaMulta" style="font-size:0.8rem; font-weight:700; color:#DC2626;"></span>
+    </div>
+
+    <label style="margin-top:8px;">Condição</label>
+    <select id="statusItem">
+      <option value="Não Conformidade">⚠️ Não Conformidade</option>
+      <option value="Conformidade">✅ Conformidade (Boa Prática)</option>
+    </select>
+
+    <label>Registro Fotográfico (Carimbo Forense)</label>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;" onchange="processarFoto(event)">
+    <button type="button" class="btn-secondary" onclick="document.getElementById('cameraInput').click()">📷 Tirar Foto com Carimbo</button>
+    
+    <div id="previewFotos" class="photo-preview" style="margin-top:8px;"></div>
+
+    <label>Cenário Constatado</label>
+    <textarea id="descCenario" rows="2" placeholder="O que foi visto no local..."></textarea>
+
+    <label>Ação Recomendada</label>
+    <textarea id="acaoCorretiva" rows="2" placeholder="Medida imediata..."></textarea>
+
+    <button type="button" onclick="salvarApontamento()">💾 Salvar Apontamento</button>
+  </div>
+
+  <h4 style="margin:12px 0 6px 0;">Apontamentos Registrados (<span id="countItens">0</span>)</h4>
+  <div id="listaItens"></div>
+
+  <button id="btnSincronizar" style="background:#059669; margin-top:8px;" onclick="sincronizarComSupabase()">🔄 Sincronizar com a Nuvem</button>
+
+  <script src="./app.js"></script>
+</body>
+</html>
