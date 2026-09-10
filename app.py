@@ -328,12 +328,11 @@ def listar_usuarios():
     return rows
 
 def criar_usuario_db(usuario, senha, perfil):
-    erro_supa = None
     if supabase_client:
         try:
             supabase_client.table("usuarios").insert({"usuario": usuario, "senha": senha, "perfil": perfil}).execute()
-        except Exception as e:
-            erro_supa = str(e)
+        except Exception:
+            pass
 
     try:
         conn = sqlite3.connect(DB_FILE)
@@ -462,7 +461,6 @@ def salvar_rascunho_db(usuario, empresa, inspetor, faixa_func, lista_evidencias)
     dados_json = json.dumps(evidencias_serializaveis)
     agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-    # 1. Salvar no Supabase se houver conexão
     if supabase_client:
         try:
             supabase_client.table("rascunhos").upsert({
@@ -475,7 +473,6 @@ def salvar_rascunho_db(usuario, empresa, inspetor, faixa_func, lista_evidencias)
         except Exception:
             pass
 
-    # 2. Salvar no SQLite local
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
@@ -492,7 +489,6 @@ def salvar_rascunho_db(usuario, empresa, inspetor, faixa_func, lista_evidencias)
     conn.close()
 
 def carregar_rascunho_db(usuario):
-    # 1. Tentar carregar da nuvem
     if supabase_client:
         try:
             res = supabase_client.table("rascunhos").select("*").eq("usuario", usuario).execute()
@@ -517,7 +513,6 @@ def carregar_rascunho_db(usuario):
         except Exception:
             pass
 
-    # 2. Fallback SQLite local
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT empresa, inspetor, faixa_func, dados_json, atualizado_em FROM rascunhos WHERE usuario = ?", (usuario,))
@@ -650,7 +645,7 @@ def otimizar_e_carimbar(imagem_original, lat=None, lon=None):
     return img
 
 # ---------------------------------------------------------
-# Auditoria com IA (Gemini Foto)
+# Auditoria de Foto com Gemini (Online)
 # ---------------------------------------------------------
 def analisar_imagem_com_ia(imagem_pil):
     api_key = None
@@ -706,7 +701,7 @@ def analisar_imagem_com_ia(imagem_pil):
         return None, f"Instabilidade na rede: {str(e)}"
 
 # ---------------------------------------------------------
-# Buscador Local 100% Offline
+# Buscador Local 100% Offline (Sem Internet)
 # ---------------------------------------------------------
 def enquadrar_local_offline(descricao_texto, df_base_nrs):
     palavras = [p.lower().strip() for p in descricao_texto.split() if len(p) > 2]
@@ -1202,6 +1197,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_pil=None):
     elementos.append(t_final)
     elementos.append(Spacer(1, 14))
 
+    # 6. Plano de Ação com Descrição Legal
     elementos.append(Paragraph("<b>6. Plano de Ação e Cronograma de Regularização (Pós-Vistoria)</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>Quadro de intervenção técnica para saneamento das não conformidades identificadas:</i>", sub_style))
     elementos.append(Spacer(1, 4))
@@ -1310,11 +1306,29 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
+
+    # =====================================================
+    # NAVEGAÇÃO ROBUSTA COM CONTROLE DE ESTADO
+    # =====================================================
+    if "menu_navegacao" not in st.session_state:
+        st.session_state.menu_navegacao = "📋 Vistoria em Campo"
+
     opcoes_menu = ["📋 Vistoria em Campo"]
-    if st.session_state.perfil_logado == "Admin":
-        opcoes_menu.append("⚙️ Painel de Administração")
     
-    aba_selecionada = st.radio("Navegação:", opcoes_menu)
+    # Checagem case-insensitive garantida
+    eh_admin = str(st.session_state.get("perfil_logado", "")).strip().lower() == "admin"
+    if eh_admin:
+        opcoes_menu.append("⚙️ Painel de Administração")
+
+    # Garante que a opção ativa exista na lista de opções permitidas
+    if st.session_state.menu_navegacao not in opcoes_menu:
+        st.session_state.menu_navegacao = opcoes_menu[0]
+
+    aba_selecionada = st.radio(
+        "Navegação:",
+        opcoes_menu,
+        key="menu_navegacao"
+    )
 
     st.markdown("---")
     st.subheader("Logomarca do Laudo")
