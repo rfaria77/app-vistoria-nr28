@@ -2159,7 +2159,7 @@ else:
 
             tab_dedo, tab_facial = st.tabs(["✋ Assinar com o Dedo (Canvas)", "📸 Biometria Facial / Presença"])
 
-            with tab_dedo:
+          with tab_dedo:
                 st.markdown("**1. Assinatura do Técnico / Auditor SST (Desenhe no quadro abaixo):**")
                 canvas_tecnico = st_canvas(
                     fill_color="rgba(255, 255, 255, 0)",
@@ -2171,8 +2171,14 @@ else:
                     drawing_mode="freedraw",
                     key="canvas_tecnico"
                 )
-                if canvas_tecnico.image_data is not None:
-                    st.session_state.ass_tecnico_imagem = Image.fromarray(canvas_tecnico.image_data.astype('uint8'), 'RGBA')
+                try:
+                    if canvas_tecnico is not None and canvas_tecnico.raw is not None:
+                        img_arr = canvas_tecnico.image_data
+                        # Verifica se o usuário de fato desenhou algo na tela
+                        if img_arr is not None and img_arr.size > 0 and img_arr.any():
+                            st.session_state.ass_tecnico_imagem = Image.fromarray(img_arr.astype('uint8'), 'RGBA')
+                except Exception:
+                    pass
 
                 st.markdown("**2. Assinatura do Acompanhante da Empresa (Desenhe no quadro abaixo):**")
                 canvas_acomp = st_canvas(
@@ -2185,6 +2191,14 @@ else:
                     drawing_mode="freedraw",
                     key="canvas_acomp"
                 )
+                try:
+                    if canvas_acomp is not None and canvas_acomp.raw is not None:
+                        img_arr_acomp = canvas_acomp.image_data
+                        if img_arr_acomp is not None and img_arr_acomp.size > 0 and img_arr_acomp.any():
+                            st.session_state.ass_acomp_imagem = Image.fromarray(img_arr_acomp.astype('uint8'), 'RGBA')
+                except Exception:
+                    pass
+                
                 if canvas_acomp.image_data is not None:
                     st.session_state.ass_acomp_imagem = Image.fromarray(canvas_acomp.image_data.astype('uint8'), 'RGBA')
 
