@@ -13,6 +13,8 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 
 from streamlit_js_eval import get_geolocation
+from streamlit_drawable_canvas import st_canvas
+
 from google import genai
 from google.genai import types
 from groq import Groq
@@ -1071,7 +1073,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 # ---------------------------------------------------------
-# Gerador de Relatório PDF Completo (com Termo de Ciência e Assinaturas)
+# Gerador de Relatório PDF Completo (com Assinaturas Digitais e Faciais)
 # ---------------------------------------------------------
 def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None):
     buffer = io.BytesIO()
@@ -1330,16 +1332,40 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
     else:
         elementos.append(Paragraph("<font color='#059669'><b>Parabéns! Não foram identificadas não conformidades nesta vistoria. Nenhum plano de ação corretivo necessário.</b></font>", cell_value))
 
-    # 7. Termo de Ciência e Assinaturas (Personalizado)
+    # 7. Termo de Ciência e Assinaturas (Desenho Tátil + Facial)
     elementos.append(Spacer(1, 24))
     elementos.append(Paragraph("<b>7. Termo de Ciência e Notificação Pericial</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>As partes declaram ciência dos fatos registrados neste relatório técnico e comprometem-se a cumprir os prazos e ações estabelecidos no Plano de Ação:</i>", sub_style))
-    elementos.append(Spacer(1, 16))
+    elementos.append(Spacer(1, 14))
 
     nome_tecnico = dados_gerais.get('inspetor', 'Técnico / Auditor SST')
-    reg_tecnico = dados_gerais.get('registro_tecnico', 'Registro Profissional não informado')
+    reg_tecnico = dados_gerais.get('registro_tecnico', 'Registro Profissional')
     nome_acomp = dados_gerais.get('acompanhante_nome', 'Representante da Empresa Inspecionada')
     cargo_acomp = dados_gerais.get('acompanhante_cargo', 'Cargo / Função')
+
+    # Incorpora Assinaturas desenhadas se existirem
+    img_ass_tec = ""
+    if dados_gerais.get('ass_tecnico_pil'):
+        buf_t = io.BytesIO()
+        dados_gerais['ass_tecnico_pil'].save(buf_t, format='PNG')
+        buf_t.seek(0)
+        img_ass_tec = ReportLabImage(buf_t, width=150, height=45)
+
+    img_ass_acomp = ""
+    if dados_gerais.get('ass_acomp_pil'):
+        buf_a = io.BytesIO()
+        dados_gerais['ass_acomp_pil'].save(buf_a, format='PNG')
+        buf_a.seek(0)
+        img_ass_acomp = ReportLabImage(buf_a, width=150, height=45)
+
+    linha_assinaturas_visuais = [img_ass_tec, img_ass_acomp]
+    t_desenho = Table([linha_assinaturas_visuais], colWidths=[261, 262])
+    t_desenho.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    elementos.append(t_desenho)
 
     dados_assinaturas = [
         [
@@ -1354,6 +1380,16 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
         ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
     ]))
     elementos.append(t_ass)
+
+    # Incorpora registro fotográfico facial de presença se houver
+    if dados_gerais.get('foto_facial_pil'):
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("<b>Registro Forense Facial de Presença Física in loco:</b>", sub_style))
+        buf_face = io.BytesIO()
+        dados_gerais['foto_facial_pil'].save(buf_face, format='JPEG', quality=85)
+        buf_face.seek(0)
+        img_face_rl = ReportLabImage(buf_face, width=160, height=120)
+        elementos.append(img_face_rl)
 
     doc.build(elementos, canvasmaker=NumberedCanvas)
     buffer.seek(0)
@@ -1378,6 +1414,14 @@ if "passo_vistoria" not in st.session_state:
 if "logo_consultoria_salva" not in st.session_state:
     st.session_state.logo_consultoria_salva = carregar_logo_consultoria_db()
 
+# Estados das assinaturas e biometrias
+if "ass_tecnico_imagem" not in st.session_state:
+    st.session_state.ass_tecnico_imagem = None
+if "ass_acomp_imagem" not in st.session_state:
+    st.session_state.ass_acomp_imagem = None
+if "foto_facial_presenca" not in st.session_state:
+    st.session_state.foto_facial_presenca = None
+
 eh_admin = str(st.session_state.get("perfil_logado", "")).strip().lower() == "admin"
 
 # BARRA LATERAL (SIDEBAR)
@@ -1394,7 +1438,6 @@ with st.sidebar:
     else:
         st.caption("📍 GPS: Aguardando sinal...")
 
-    # BOTÃO EXCLUSIVO DE ADMIN NA SIDEBAR
     if eh_admin:
         st.markdown("---")
         if st.session_state.visao_atual == "vistoria":
@@ -2062,10 +2105,10 @@ else:
                 st.rerun()
 
     # ---------------------------------------------------------
-    # PÁGINA 3: LAUDO TÉCNICO, GRÁFICOS & ASSINATURAS DO TERMO
+    # PÁGINA 3: LAUDO TÉCNICO, ASSINATURA TÁTIL / DIGITAL & FACIAL
     # ---------------------------------------------------------
     elif st.session_state.passo_vistoria == 3:
-        st.markdown("### 3️⃣ Fechamento do Laudo & Exportação")
+        st.markdown("### 3️⃣ Fechamento, Assinatura & Exportação")
         
         empresa_cliente = st.session_state.get("empresa_selecionada", "Construtora Exemplo Ltda")
         inspetor = st.session_state.get("inspetor_nome", f"{st.session_state.usuario_logado.capitalize()} (SST)")
@@ -2101,21 +2144,57 @@ else:
             """, unsafe_allow_html=True)
 
             # =====================================================
-            # ASSINATURAS DO LAUDO (AUDITOR + ACOMPANHANTE DA OBRA)
+            # TELA DE ASSINATURA NA TELA (DEDO / DIGITAL / FACIAL)
             # =====================================================
-            st.markdown("#### ✍️ Termo de Ciência & Assinaturas Periciais")
-            st.caption("Preencha os dados dos signatários para emissão formal do documento pericial:")
+            st.markdown("#### ✍️ Assinatura e Validação Pericial em Tela")
+            st.caption("Assine com o dedo ou mouse na tela e registre a validação biométrica facial do acompanhante:")
 
-            col_ass1, col_ass2 = st.columns(2)
-            with col_ass1:
-                st.markdown("**1. Técnico / Auditor SST:**")
-                tecnico_nome_ass = st.text_input("Nome do Técnico Responsável:", value=inspetor, key="ass_tecnico_nome")
-                tecnico_registro_ass = st.text_input("Registro Profissional (MTE / CREA / CFT):", value="MTE: 000000/UF", key="ass_tecnico_reg")
+            col_id_ass1, col_id_ass2 = st.columns(2)
+            with col_id_ass1:
+                tecnico_nome_ass = st.text_input("Técnico / Auditor Responsável:", value=inspetor, key="ass_tec_n")
+                tecnico_registro_ass = st.text_input("Registro Profissional:", value="MTE: 000000/UF", key="ass_tec_r")
+            with col_id_ass2:
+                acomp_nome_ass = st.text_input("Acompanhante da Empresa:", placeholder="Ex: Carlos Silva", key="ass_acomp_n")
+                acomp_cargo_ass = st.text_input("Cargo / Função:", placeholder="Ex: Engenheiro Residente", key="ass_acomp_c")
 
-            with col_ass2:
-                st.markdown("**2. Acompanhante da Obra / Empresa:**")
-                acomp_nome_ass = st.text_input("Nome do Responsável no Local:", placeholder="Ex: Carlos Silva", key="ass_acomp_nome")
-                acomp_cargo_ass = st.text_input("Cargo / Função:", placeholder="Ex: Engenheiro Residente / Encarregado", key="ass_acomp_cargo")
+            tab_dedo, tab_facial = st.tabs(["✋ Assinar com o Dedo (Canvas)", "📸 Biometria Facial / Presença"])
+
+            with tab_dedo:
+                st.markdown("**1. Assinatura do Técnico / Auditor SST (Desenhe no quadro abaixo):**")
+                canvas_tecnico = st_canvas(
+                    fill_color="rgba(255, 255, 255, 0)",
+                    stroke_width=3,
+                    stroke_color="#0F172A",
+                    background_color="#FFFFFF",
+                    height=130,
+                    width=320,
+                    drawing_mode="freedraw",
+                    key="canvas_tecnico"
+                )
+                if canvas_tecnico.image_data is not None:
+                    st.session_state.ass_tecnico_imagem = Image.fromarray(canvas_tecnico.image_data.astype('uint8'), 'RGBA')
+
+                st.markdown("**2. Assinatura do Acompanhante da Empresa (Desenhe no quadro abaixo):**")
+                canvas_acomp = st_canvas(
+                    fill_color="rgba(255, 255, 255, 0)",
+                    stroke_width=3,
+                    stroke_color="#0F172A",
+                    background_color="#FFFFFF",
+                    height=130,
+                    width=320,
+                    drawing_mode="freedraw",
+                    key="canvas_acomp"
+                )
+                if canvas_acomp.image_data is not None:
+                    st.session_state.ass_acomp_imagem = Image.fromarray(canvas_acomp.image_data.astype('uint8'), 'RGBA')
+
+            with tab_facial:
+                st.markdown("**Registro Fotográfico Facial (Comprovação in loco da entrega do Laudo):**")
+                foto_face = st.camera_input("Capturar rosto do responsável/acompanhante:", key="cam_facial_termo")
+                if foto_face:
+                    img_facial_carimbada = otimizar_e_carimbar(Image.open(foto_face), lat_capturada, lon_capturada)
+                    st.session_state.foto_facial_presenca = img_facial_carimbada
+                    st.success("✅ Presença e carimbo facial registrados com sucesso!")
 
             st.write("<br>", unsafe_allow_html=True)
 
@@ -2129,7 +2208,7 @@ else:
                     link_wpp = gerar_link_whatsapp(tel_wpp, empresa_cliente, tot_multa_max, tot_econ_max, qtd_nc)
                     st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25D366;color:white;border:none;height:48px;border-radius:10px;font-weight:700;width:100%;cursor:pointer;margin-top:24px;">💬 Enviar</button></a>', unsafe_allow_html=True)
 
-            # Geração do Laudo Pericial em PDF
+            # Geração do Laudo Pericial em PDF Completo
             st.markdown("#### 📄 Laudo Pericial Completo (PDF)")
             data_hoje = datetime.date.today().strftime("%d/%m/%Y")
             dados_relatorio = {
@@ -2139,7 +2218,10 @@ else:
                 "acompanhante_nome": acomp_nome_ass if acomp_nome_ass else "Representante da Empresa Inspecionada",
                 "acompanhante_cargo": acomp_cargo_ass if acomp_cargo_ass else "Cargo / Função",
                 "faixa_func": faixa_func,
-                "data": data_hoje
+                "data": data_hoje,
+                "ass_tecnico_pil": st.session_state.ass_tecnico_imagem,
+                "ass_acomp_pil": st.session_state.ass_acomp_imagem,
+                "foto_facial_pil": st.session_state.foto_facial_presenca
             }
 
             pdf_buffer = gerar_pdf_completo(dados_relatorio, st.session_state.evidencias, logo_consultoria_pil=logo_consultoria_para_pdf)
@@ -2153,7 +2235,7 @@ else:
                     st.toast("✅ Laudo salvo no histórico da empresa!")
             with c_bx:
                 st.download_button(
-                    label="⬇️ Baixar Laudo Técnico (PDF)",
+                    label="⬇️ Baixar Laudo com Assinaturas (PDF)",
                     data=pdf_bytes_final,
                     file_name=f"Laudo_SST_{empresa_cliente.replace(' ', '_')}.pdf",
                     mime="application/pdf",
@@ -2170,6 +2252,9 @@ else:
                     st.session_state.fotos_atuais = []
                     st.session_state.ia_sugestao = None
                     st.session_state.editando_indice = None
+                    st.session_state.ass_tecnico_imagem = None
+                    st.session_state.ass_acomp_imagem = None
+                    st.session_state.foto_facial_presenca = None
                     st.session_state.passo_vistoria = 1
                     st.rerun()
             with c_bk:

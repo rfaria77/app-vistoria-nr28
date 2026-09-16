@@ -5,5 +5,4 @@ pandas
 matplotlib
 streamlit-js-eval
 google-genai
-groq
-supabase
+streamlit-drawable-canvas
