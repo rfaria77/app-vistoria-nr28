@@ -1343,7 +1343,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
     nome_acomp = dados_gerais.get('acompanhante_nome', 'Representante da Empresa Inspecionada')
     cargo_acomp = dados_gerais.get('acompanhante_cargo', 'Cargo / Função')
 
-    # Incorpora Assinaturas desenhadas se existirem
     img_ass_tec = ""
     if dados_gerais.get('ass_tecnico_pil'):
         buf_t = io.BytesIO()
@@ -1381,7 +1380,6 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
     ]))
     elementos.append(t_ass)
 
-    # Incorpora registro fotográfico facial de presença se houver
     if dados_gerais.get('foto_facial_pil'):
         elementos.append(Spacer(1, 10))
         elementos.append(Paragraph("<b>Registro Forense Facial de Presença Física in loco:</b>", sub_style))
@@ -2159,7 +2157,7 @@ else:
 
             tab_dedo, tab_facial = st.tabs(["✋ Assinar com o Dedo (Canvas)", "📸 Biometria Facial / Presença"])
 
-          with tab_dedo:
+            with tab_dedo:
                 st.markdown("**1. Assinatura do Técnico / Auditor SST (Desenhe no quadro abaixo):**")
                 canvas_tecnico = st_canvas(
                     fill_color="rgba(255, 255, 255, 0)",
@@ -2172,9 +2170,8 @@ else:
                     key="canvas_tecnico"
                 )
                 try:
-                    if canvas_tecnico is not None and canvas_tecnico.raw is not None:
+                    if canvas_tecnico is not None and getattr(canvas_tecnico, "raw", None) is not None:
                         img_arr = canvas_tecnico.image_data
-                        # Verifica se o usuário de fato desenhou algo na tela
                         if img_arr is not None and img_arr.size > 0 and img_arr.any():
                             st.session_state.ass_tecnico_imagem = Image.fromarray(img_arr.astype('uint8'), 'RGBA')
                 except Exception:
@@ -2192,15 +2189,12 @@ else:
                     key="canvas_acomp"
                 )
                 try:
-                    if canvas_acomp is not None and canvas_acomp.raw is not None:
+                    if canvas_acomp is not None and getattr(canvas_acomp, "raw", None) is not None:
                         img_arr_acomp = canvas_acomp.image_data
                         if img_arr_acomp is not None and img_arr_acomp.size > 0 and img_arr_acomp.any():
                             st.session_state.ass_acomp_imagem = Image.fromarray(img_arr_acomp.astype('uint8'), 'RGBA')
                 except Exception:
                     pass
-                
-                if canvas_acomp.image_data is not None:
-                    st.session_state.ass_acomp_imagem = Image.fromarray(canvas_acomp.image_data.astype('uint8'), 'RGBA')
 
             with tab_facial:
                 st.markdown("**Registro Fotográfico Facial (Comprovação in loco da entrega do Laudo):**")
