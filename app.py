@@ -7,14 +7,13 @@ import sqlite3
 import datetime
 import urllib.parse
 import base64
-import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 
 from streamlit_js_eval import get_geolocation
-from streamlit_drawable_canvas import st_canvas
 
 from google import genai
 from google.genai import types
@@ -2101,7 +2100,7 @@ else:
                 st.rerun()
 
     # ---------------------------------------------------------
-    # PÁGINA 3: LAUDO TÉCNICO, ASSINATURA TÁTIL / DIGITAL & FACIAL
+    # PÁGINA 3: LAUDO TÉCNICO, ASSINATURAS & TERMO DE CIÊNCIA
     # ---------------------------------------------------------
     elif st.session_state.passo_vistoria == 3:
         st.markdown("### 3️⃣ Fechamento, Assinatura & Exportação")
@@ -2143,7 +2142,7 @@ else:
             # TELA DE ASSINATURA NA TELA (DEDO / DIGITAL / FACIAL)
             # =====================================================
             st.markdown("#### ✍️ Assinatura e Validação Pericial em Tela")
-            st.caption("Assine com o dedo ou mouse na tela e registre a validação biométrica facial do acompanhante:")
+            st.caption("Assine na tela ou anexe a rubrica dos responsáveis pela auditoria:")
 
             col_id_ass1, col_id_ass2 = st.columns(2)
             with col_id_ass1:
@@ -2153,65 +2152,28 @@ else:
                 acomp_nome_ass = st.text_input("Acompanhante da Empresa:", placeholder="Ex: Carlos Silva", key="ass_acomp_n")
                 acomp_cargo_ass = st.text_input("Cargo / Função:", placeholder="Ex: Engenheiro Residente", key="ass_acomp_c")
 
-            tab_dedo, tab_upload_rubrica, tab_facial = st.tabs([
-                "✋ Assinar com o Dedo (Tela)", "📤 Carregar Rubrica / Assinatura", "📸 Biometria Facial"
+            tab_rubrica, tab_facial = st.tabs([
+                "📤 Rubricas / Assinaturas Digitais", "📸 Validação Facial de Presença"
             ])
 
-            with tab_dedo:
-                st.markdown("**1. Assinatura do Técnico / Auditor SST:**")
-                canvas_tecnico = st_canvas(
-                    fill_color="rgba(255, 255, 255, 0)",
-                    stroke_width=3,
-                    stroke_color="#0F172A",
-                    background_color="#FFFFFF",
-                    height=130,
-                    width=320,
-                    drawing_mode="freedraw",
-                    key="canvas_tecnico_v3"
-                )
-                # Captura em tempo real sem botão se houver traço
-                if canvas_tecnico and canvas_tecnico.image_data is not None:
-                    arr_t = canvas_tecnico.image_data
-                    if np.max(np.abs(arr_t[:, :, :3] - 255)) > 40:
-                        st.session_state.ass_tecnico_imagem = Image.fromarray(arr_t.astype('uint8')).convert("RGB")
-
-                st.markdown("**2. Assinatura do Acompanhante da Empresa:**")
-                canvas_acomp = st_canvas(
-                    fill_color="rgba(255, 255, 255, 0)",
-                    stroke_width=3,
-                    stroke_color="#0F172A",
-                    background_color="#FFFFFF",
-                    height=130,
-                    width=320,
-                    drawing_mode="freedraw",
-                    key="canvas_acomp_v3"
-                )
-                if canvas_acomp and canvas_acomp.image_data is not None:
-                    arr_a = canvas_acomp.image_data
-                    if np.max(np.abs(arr_a[:, :, :3] - 255)) > 40:
-                        st.session_state.ass_acomp_imagem = Image.fromarray(arr_a.astype('uint8')).convert("RGB")
-
-                c_stat1, c_stat2 = st.columns(2)
-                with c_stat1:
-                    if st.session_state.ass_tecnico_imagem:
-                        st.caption("✅ Assinatura do Técnico Carregada")
-                with c_stat2:
-                    if st.session_state.ass_acomp_imagem:
-                        st.caption("✅ Assinatura do Acompanhante Carregada")
-
-            with tab_upload_rubrica:
-                st.markdown("Se preferir, anexe a foto da rubrica ou documento assinado:")
+            with tab_rubrica:
+                st.markdown("Anexe a assinatura/rubrica digitalizada ou foto assinada na hora:")
                 col_up_a1, col_up_a2 = st.columns(2)
                 with col_up_a1:
-                    up_ass_tec = st.file_uploader("Rubrica do Técnico (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_t")
+                    st.markdown("**Assinatura do Técnico SST:**")
+                    up_ass_tec = st.file_uploader("Upload Rubrica Técnico (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_t")
                     if up_ass_tec:
                         st.session_state.ass_tecnico_imagem = Image.open(up_ass_tec).convert("RGB")
-                        st.toast("✅ Rubrica do técnico anexada!")
+                    if st.session_state.ass_tecnico_imagem:
+                        st.image(st.session_state.ass_tecnico_imagem, width=160, caption="Assinatura do Técnico Confirmada")
+
                 with col_up_a2:
-                    up_ass_ac = st.file_uploader("Rubrica do Acompanhante (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_a")
+                    st.markdown("**Assinatura do Acompanhante:**")
+                    up_ass_ac = st.file_uploader("Upload Rubrica Acompanhante (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_a")
                     if up_ass_ac:
                         st.session_state.ass_acomp_imagem = Image.open(up_ass_ac).convert("RGB")
-                        st.toast("✅ Rubrica do acompanhante anexada!")
+                    if st.session_state.ass_acomp_imagem:
+                        st.image(st.session_state.ass_acomp_imagem, width=160, caption="Assinatura do Acompanhante Confirmada")
 
             with tab_facial:
                 st.markdown("**Registro Fotográfico Facial (Comprovação in loco da entrega do Laudo):**")
