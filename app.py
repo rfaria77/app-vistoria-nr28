@@ -1071,7 +1071,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 # ---------------------------------------------------------
-# Gerador de Relatório PDF Completo (Logo da Consultoria no Cabeçalho)
+# Gerador de Relatório PDF Completo (com Termo de Ciência e Assinaturas)
 # ---------------------------------------------------------
 def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None):
     buffer = io.BytesIO()
@@ -1330,16 +1330,21 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
     else:
         elementos.append(Paragraph("<font color='#059669'><b>Parabéns! Não foram identificadas não conformidades nesta vistoria. Nenhum plano de ação corretivo necessário.</b></font>", cell_value))
 
-    # 7. Termo de Ciência e Assinaturas
+    # 7. Termo de Ciência e Assinaturas (Personalizado)
     elementos.append(Spacer(1, 24))
     elementos.append(Paragraph("<b>7. Termo de Ciência e Notificação Pericial</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>As partes declaram ciência dos fatos registrados neste relatório técnico e comprometem-se a cumprir os prazos e ações estabelecidos no Plano de Ação:</i>", sub_style))
     elementos.append(Spacer(1, 16))
 
+    nome_tecnico = dados_gerais.get('inspetor', 'Técnico / Auditor SST')
+    reg_tecnico = dados_gerais.get('registro_tecnico', 'Registro Profissional não informado')
+    nome_acomp = dados_gerais.get('acompanhante_nome', 'Representante da Empresa Inspecionada')
+    cargo_acomp = dados_gerais.get('acompanhante_cargo', 'Cargo / Função')
+
     dados_assinaturas = [
         [
-            Paragraph("____________________________________________<br/><b>Responsável Técnico / Auditor SST</b><br/>Registro Profissional: ___________________", cell_td_center),
-            Paragraph("____________________________________________<br/><b>Representante da Empresa Inspecionada</b><br/>Cargo / Função: ___________________", cell_td_center)
+            Paragraph(f"____________________________________________<br/><b>{nome_tecnico}</b><br/>Auditor / Responsável Técnico SST<br/><font color='#64748B'>{reg_tecnico}</font>", cell_td_center),
+            Paragraph(f"____________________________________________<br/><b>{nome_acomp}</b><br/>Acompanhante da Vistoria in loco<br/><font color='#64748B'>{cargo_acomp}</font>", cell_td_center)
         ]
     ]
     t_ass = Table(dados_assinaturas, colWidths=[261, 262])
@@ -1419,13 +1424,12 @@ with st.sidebar:
         st.session_state.perfil_logado = ""
         st.rerun()
 
-    # Confirmação visual discreta da consultoria na sidebar
     if st.session_state.logo_consultoria_salva:
         st.markdown("---")
         st.caption("Consultoria SST Credenciada:")
         st.image(st.session_state.logo_consultoria_salva, width=130)
 
-# CABEÇALHO SUPERIOR DA PÁGINA (COM ÍCONE OFICIAL)
+# CABEÇALHO SUPERIOR DA PÁGINA
 c_topo1, c_topo2 = st.columns([3, 1.4])
 with c_topo1:
     if os.path.exists("icon-192.png"):
@@ -1694,7 +1698,6 @@ else:
         st.markdown("### 1️⃣ Identificação da Empresa Inspecionada")
         st.caption("Selecione a empresa que receberá a vistoria ou cadastre uma nova diretamente abaixo.")
 
-        # CADASTRO RÁPIDO DE CLIENTE INSPECIONADO
         with st.expander("➕ Cadastrar Nova Empresa Inspecionada", expanded=False):
             with st.form("form_cad_empresa_rapido"):
                 st.markdown("**Cadastrar Novo Cliente / Obra:**")
@@ -1719,7 +1722,6 @@ else:
                     else:
                         st.warning("Preencha o nome da empresa.")
 
-        # Seleção da Empresa Existente
         idx_emp_padrao = 0
         emp_salva = st.session_state.get("empresa_selecionada")
         if emp_salva in lista_nomes_empresas:
@@ -2060,7 +2062,7 @@ else:
                 st.rerun()
 
     # ---------------------------------------------------------
-    # PÁGINA 3: LAUDO TÉCNICO, GRÁFICOS & EMISSÃO DE PDF
+    # PÁGINA 3: LAUDO TÉCNICO, GRÁFICOS & ASSINATURAS DO TERMO
     # ---------------------------------------------------------
     elif st.session_state.passo_vistoria == 3:
         st.markdown("### 3️⃣ Fechamento do Laudo & Exportação")
@@ -2098,6 +2100,26 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
+            # =====================================================
+            # ASSINATURAS DO LAUDO (AUDITOR + ACOMPANHANTE DA OBRA)
+            # =====================================================
+            st.markdown("#### ✍️ Termo de Ciência & Assinaturas Periciais")
+            st.caption("Preencha os dados dos signatários para emissão formal do documento pericial:")
+
+            col_ass1, col_ass2 = st.columns(2)
+            with col_ass1:
+                st.markdown("**1. Técnico / Auditor SST:**")
+                tecnico_nome_ass = st.text_input("Nome do Técnico Responsável:", value=inspetor, key="ass_tecnico_nome")
+                tecnico_registro_ass = st.text_input("Registro Profissional (MTE / CREA / CFT):", value="MTE: 000000/UF", key="ass_tecnico_reg")
+
+            with col_ass2:
+                st.markdown("**2. Acompanhante da Obra / Empresa:**")
+                acomp_nome_ass = st.text_input("Nome do Responsável no Local:", placeholder="Ex: Carlos Silva", key="ass_acomp_nome")
+                acomp_cargo_ass = st.text_input("Cargo / Função:", placeholder="Ex: Engenheiro Residente / Encarregado", key="ass_acomp_cargo")
+
+            st.write("<br>", unsafe_allow_html=True)
+
+            # WhatsApp
             st.markdown("#### 📲 Envio Imediato por WhatsApp")
             c_w1, c_w2 = st.columns([2.5, 1.2])
             with c_w1:
@@ -2107,11 +2129,15 @@ else:
                     link_wpp = gerar_link_whatsapp(tel_wpp, empresa_cliente, tot_multa_max, tot_econ_max, qtd_nc)
                     st.markdown(f'<a href="{link_wpp}" target="_blank"><button style="background-color:#25D366;color:white;border:none;height:48px;border-radius:10px;font-weight:700;width:100%;cursor:pointer;margin-top:24px;">💬 Enviar</button></a>', unsafe_allow_html=True)
 
+            # Geração do Laudo Pericial em PDF
             st.markdown("#### 📄 Laudo Pericial Completo (PDF)")
             data_hoje = datetime.date.today().strftime("%d/%m/%Y")
             dados_relatorio = {
                 "empresa_cliente": empresa_cliente,
-                "inspetor": inspetor,
+                "inspetor": tecnico_nome_ass,
+                "registro_tecnico": tecnico_registro_ass,
+                "acompanhante_nome": acomp_nome_ass if acomp_nome_ass else "Representante da Empresa Inspecionada",
+                "acompanhante_cargo": acomp_cargo_ass if acomp_cargo_ass else "Cargo / Função",
                 "faixa_func": faixa_func,
                 "data": data_hoje
             }
@@ -2122,7 +2148,7 @@ else:
             c_sv, c_bx = st.columns(2)
             with c_sv:
                 if st.button("💾 Salvar Laudo no Histórico", type="secondary", use_container_width=True):
-                    salvar_relatorio_db(data_hoje, empresa_cliente, inspetor, len(st.session_state.evidencias), tot_multa_min, tot_multa_max, tot_econ_min, tot_econ_max, pdf_bytes_final)
+                    salvar_relatorio_db(data_hoje, empresa_cliente, tecnico_nome_ass, len(st.session_state.evidencias), tot_multa_min, tot_multa_max, tot_econ_min, tot_econ_max, pdf_bytes_final)
                     limpar_rascunho_db(st.session_state.usuario_logado)
                     st.toast("✅ Laudo salvo no histórico da empresa!")
             with c_bx:
