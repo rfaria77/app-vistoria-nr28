@@ -7,13 +7,14 @@ import sqlite3
 import datetime
 import urllib.parse
 import base64
+import numpy as np
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 
 from streamlit_js_eval import get_geolocation
+from streamlit_drawable_canvas import st_canvas
 
 from google import genai
 from google.genai import types
@@ -334,6 +335,26 @@ def carregar_logo_consultoria_db():
     if row and row[0]:
         raw_bytes = base64.b64decode(row[0])
         return Image.open(io.BytesIO(raw_bytes))
+    return None
+
+# ---------------------------------------------------------
+# Função Segura de Extração de Imagem do Canvas (Zero Erro)
+# ---------------------------------------------------------
+def extrair_imagem_canvas(canvas_obj):
+    if canvas_obj is None:
+        return None
+    # Verifica primeiro os objetos desenhados para não chamar .image_data prematuramente
+    json_data = getattr(canvas_obj, 'json_data', None)
+    if not json_data or len(json_data.get('objects', [])) == 0:
+        return None
+    try:
+        arr = canvas_obj.image_data
+        if arr is not None and len(arr) > 0:
+            # Verifica se há traços com tinta escura
+            if np.max(np.abs(arr[:, :, :3] - 255)) > 30:
+                return Image.fromarray(arr.astype('uint8')).convert('RGB')
+    except (RuntimeError, Exception):
+        pass
     return None
 
 # ---------------------------------------------------------
@@ -1332,7 +1353,7 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
     else:
         elementos.append(Paragraph("<font color='#059669'><b>Parabéns! Não foram identificadas não conformidades nesta vistoria. Nenhum plano de ação corretivo necessário.</b></font>", cell_value))
 
-    # 7. Termo de Ciência e Assinaturas (com Imagem Desenhada Direta)
+    # 7. Termo de Ciência e Assinaturas (com Imagens das Assinaturas Reais)
     elementos.append(Spacer(1, 20))
     elementos.append(Paragraph("<b>7. Termo de Ciência e Assinaturas</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>As partes declaram ciência dos fatos registrados neste relatório técnico e comprometem-se a cumprir os prazos e ações estabelecidos no Plano de Ação:</i>", sub_style))
@@ -1904,7 +1925,7 @@ else:
                         st.rerun()
 
         with col_up:
-            arquivos_up = st.file_uploader("Galeria / Anexos:", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"up_{st.session_state.contador_fluxo}")
+            arquivos_up = st.file_uploader("Galeria / Anexos:", type=["jpg", "jpeg", "png"], acceptmultiple_files=True, key=f"up_{st.session_state.contador_fluxo}")
             if arquivos_up and st.button("➕ Confirmar Anexos", use_container_width=True):
                 for arq in arquivos_up:
                     img_proc = otimizar_e_carimbar(Image.open(arq), lat_capturada, lon_capturada)
@@ -2142,7 +2163,7 @@ else:
             # TELA DE ASSINATURA NA TELA (DEDO / DIGITAL / FACIAL)
             # =====================================================
             st.markdown("#### ✍️ Assinatura e Validação Pericial em Tela")
-            st.caption("Assine na tela ou anexe a rubrica dos responsáveis pela auditoria:")
+            st.caption("O responsável pela empresa pode assinar diretamente na tela com o dedo:")
 
             col_id_ass1, col_id_ass2 = st.columns(2)
             with col_id_ass1:
@@ -2152,28 +2173,64 @@ else:
                 acomp_nome_ass = st.text_input("Acompanhante da Empresa:", placeholder="Ex: Carlos Silva", key="ass_acomp_n")
                 acomp_cargo_ass = st.text_input("Cargo / Função:", placeholder="Ex: Engenheiro Residente", key="ass_acomp_c")
 
-            tab_rubrica, tab_facial = st.tabs([
-                "📤 Rubricas / Assinaturas Digitais", "📸 Validação Facial de Presença"
+            tab_dedo, tab_upload_rubrica, tab_facial = st.tabs([
+                "✋ Assinar com o Dedo (Tela)", "📤 Carregar Rubrica / Assinatura", "📸 Biometria Facial"
             ])
 
-            with tab_rubrica:
-                st.markdown("Anexe a assinatura/rubrica digitalizada ou foto assinada na hora:")
+            with tab_dedo:
+                st.markdown("**1. Assinatura do Técnico / Auditor SST:**")
+                canvas_tecnico = st_canvas(
+                    fill_color="rgba(255, 255, 255, 0)",
+                    stroke_width=3,
+                    stroke_color="#0F172A",
+                    background_color="#FFFFFF",
+                    height=130,
+                    width=320,
+                    drawing_mode="freedraw",
+                    key="canvas_tecnico_v5"
+                )
+                img_tec_capturada = extrair_imagem_canvas(canvas_tecnico)
+                if img_tec_capturada is not None:
+                    st.session_state.ass_tecnico_imagem = img_tec_capturada
+
+                st.markdown("**2. Assinatura do Acompanhante da Empresa (com o dedo):**")
+                canvas_acomp = st_canvas(
+                    fill_color="rgba(255, 255, 255, 0)",
+                    stroke_width=3,
+                    stroke_color="#0F172A",
+                    background_color="#FFFFFF",
+                    height=130,
+                    width=320,
+                    drawing_mode="freedraw",
+                    key="canvas_acomp_v5"
+                )
+                img_acomp_capturada = extrair_imagem_canvas(canvas_acomp)
+                if img_acomp_capturada is not None:
+                    st.session_state.ass_acomp_imagem = img_acomp_capturada
+
+                c_stat1, c_stat2 = st.columns(2)
+                with c_stat1:
+                    if st.session_state.ass_tecnico_imagem:
+                        st.caption("✅ Assinatura do Técnico Capturada")
+                        st.image(st.session_state.ass_tecnico_imagem, width=140)
+                with c_stat2:
+                    if st.session_state.ass_acomp_imagem:
+                        st.caption("✅ Assinatura do Acompanhante Capturada")
+                        st.image(st.session_state.ass_acomp_imagem, width=140)
+
+            with tab_upload_rubrica:
+                st.markdown("Se preferir, anexe a foto da rubrica ou documento assinado:")
                 col_up_a1, col_up_a2 = st.columns(2)
                 with col_up_a1:
-                    st.markdown("**Assinatura do Técnico SST:**")
-                    up_ass_tec = st.file_uploader("Upload Rubrica Técnico (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_t")
+                    up_ass_tec = st.file_uploader("Rubrica do Técnico (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_t")
                     if up_ass_tec:
                         st.session_state.ass_tecnico_imagem = Image.open(up_ass_tec).convert("RGB")
-                    if st.session_state.ass_tecnico_imagem:
-                        st.image(st.session_state.ass_tecnico_imagem, width=160, caption="Assinatura do Técnico Confirmada")
-
+                        st.toast("✅ Rubrica do técnico anexada!")
                 with col_up_a2:
-                    st.markdown("**Assinatura do Acompanhante:**")
-                    up_ass_ac = st.file_uploader("Upload Rubrica Acompanhante (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_a")
+                    up_ass_ac = st.file_uploader("Rubrica do Acompanhante (PNG/JPG):", type=["png", "jpg", "jpeg"], key="up_ass_a")
                     if up_ass_ac:
                         st.session_state.ass_acomp_imagem = Image.open(up_ass_ac).convert("RGB")
-                    if st.session_state.ass_acomp_imagem:
-                        st.image(st.session_state.ass_acomp_imagem, width=160, caption="Assinatura do Acompanhante Confirmada")
+                        st.toast("✅ Rubrica do acompanhante anexada!")
 
             with tab_facial:
                 st.markdown("**Registro Fotográfico Facial (Comprovação in loco da entrega do Laudo):**")
