@@ -7,6 +7,7 @@ import sqlite3
 import datetime
 import urllib.parse
 import base64
+import numpy as np
 import pandas as pd
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
@@ -1073,7 +1074,7 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 # ---------------------------------------------------------
-# Gerador de Relatório PDF Completo (com Assinaturas Digitais e Faciais)
+# Gerador de Relatório PDF Completo (com Assinaturas Integradas)
 # ---------------------------------------------------------
 def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None):
     buffer = io.BytesIO()
@@ -1333,60 +1334,57 @@ def gerar_pdf_completo(dados_gerais, lista_evidencias, logo_consultoria_pil=None
         elementos.append(Paragraph("<font color='#059669'><b>Parabéns! Não foram identificadas não conformidades nesta vistoria. Nenhum plano de ação corretivo necessário.</b></font>", cell_value))
 
     # 7. Termo de Ciência e Assinaturas (Desenho Tátil + Facial)
-    elementos.append(Spacer(1, 24))
+    elementos.append(Spacer(1, 20))
     elementos.append(Paragraph("<b>7. Termo de Ciência e Notificação Pericial</b>", styles['Heading3']))
     elementos.append(Paragraph("<i>As partes declaram ciência dos fatos registrados neste relatório técnico e comprometem-se a cumprir os prazos e ações estabelecidos no Plano de Ação:</i>", sub_style))
-    elementos.append(Spacer(1, 14))
+    elementos.append(Spacer(1, 10))
 
     nome_tecnico = dados_gerais.get('inspetor', 'Técnico / Auditor SST')
     reg_tecnico = dados_gerais.get('registro_tecnico', 'Registro Profissional')
     nome_acomp = dados_gerais.get('acompanhante_nome', 'Representante da Empresa Inspecionada')
     cargo_acomp = dados_gerais.get('acompanhante_cargo', 'Cargo / Função')
 
-    img_ass_tec = ""
+    # Incorpora Assinaturas desenhadas diretamente sobre as linhas
+    img_ass_tec = Paragraph("<br/><br/>", cell_td_center)
     if dados_gerais.get('ass_tecnico_pil'):
         buf_t = io.BytesIO()
         dados_gerais['ass_tecnico_pil'].save(buf_t, format='PNG')
         buf_t.seek(0)
-        img_ass_tec = ReportLabImage(buf_t, width=150, height=45)
+        img_ass_tec = ReportLabImage(buf_t, width=160, height=50)
 
-    img_ass_acomp = ""
+    img_ass_acomp = Paragraph("<br/><br/>", cell_td_center)
     if dados_gerais.get('ass_acomp_pil'):
         buf_a = io.BytesIO()
         dados_gerais['ass_acomp_pil'].save(buf_a, format='PNG')
         buf_a.seek(0)
-        img_ass_acomp = ReportLabImage(buf_a, width=150, height=45)
+        img_ass_acomp = ReportLabImage(buf_a, width=160, height=50)
 
-    linha_assinaturas_visuais = [img_ass_tec, img_ass_acomp]
-    t_desenho = Table([linha_assinaturas_visuais], colWidths=[261, 262])
-    t_desenho.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-    ]))
-    elementos.append(t_desenho)
-
-    dados_assinaturas = [
+    tabela_assinaturas_completa = [
+        [img_ass_tec, img_ass_acomp],
         [
             Paragraph(f"____________________________________________<br/><b>{nome_tecnico}</b><br/>Auditor / Responsável Técnico SST<br/><font color='#64748B'>{reg_tecnico}</font>", cell_td_center),
             Paragraph(f"____________________________________________<br/><b>{nome_acomp}</b><br/>Acompanhante da Vistoria in loco<br/><font color='#64748B'>{cargo_acomp}</font>", cell_td_center)
         ]
     ]
-    t_ass = Table(dados_assinaturas, colWidths=[261, 262])
-    t_ass.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-    ]))
-    elementos.append(t_ass)
 
+    t_ass_final = Table(tabela_assinaturas_completa, colWidths=[261, 262])
+    t_ass_final.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, 0), 'BOTTOM'),
+        ('VALIGN', (0, 1), (-1, 1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 0),
+        ('TOPPADDING', (0, 1), (-1, 1), 2),
+    ]))
+    elementos.append(t_ass_final)
+
+    # Incorpora registro fotográfico facial de presença se houver
     if dados_gerais.get('foto_facial_pil'):
         elementos.append(Spacer(1, 10))
         elementos.append(Paragraph("<b>Registro Forense Facial de Presença Física in loco:</b>", sub_style))
         buf_face = io.BytesIO()
         dados_gerais['foto_facial_pil'].save(buf_face, format='JPEG', quality=85)
         buf_face.seek(0)
-        img_face_rl = ReportLabImage(buf_face, width=160, height=120)
+        img_face_rl = ReportLabImage(buf_face, width=150, height=110)
         elementos.append(img_face_rl)
 
     doc.build(elementos, canvasmaker=NumberedCanvas)
@@ -2169,13 +2167,6 @@ else:
                     drawing_mode="freedraw",
                     key="canvas_tecnico"
                 )
-                try:
-                    if canvas_tecnico is not None and getattr(canvas_tecnico, "raw", None) is not None:
-                        img_arr = canvas_tecnico.image_data
-                        if img_arr is not None and img_arr.size > 0 and img_arr.any():
-                            st.session_state.ass_tecnico_imagem = Image.fromarray(img_arr.astype('uint8'), 'RGBA')
-                except Exception:
-                    pass
 
                 st.markdown("**2. Assinatura do Acompanhante da Empresa (Desenhe no quadro abaixo):**")
                 canvas_acomp = st_canvas(
@@ -2188,13 +2179,43 @@ else:
                     drawing_mode="freedraw",
                     key="canvas_acomp"
                 )
-                try:
-                    if canvas_acomp is not None and getattr(canvas_acomp, "raw", None) is not None:
-                        img_arr_acomp = canvas_acomp.image_data
-                        if img_arr_acomp is not None and img_arr_acomp.size > 0 and img_arr_acomp.any():
-                            st.session_state.ass_acomp_imagem = Image.fromarray(img_arr_acomp.astype('uint8'), 'RGBA')
-                except Exception:
-                    pass
+
+                if st.button("✅ Confirmar Assinaturas Desenhadas", type="primary", use_container_width=True):
+                    # Processa assinatura do técnico
+                    try:
+                        if canvas_tecnico is not None and getattr(canvas_tecnico, "raw", None) is not None:
+                            arr_t = canvas_tecnico.image_data
+                            # Se houver traço escuro diferente do branco
+                            if arr_t is not None and (arr_t[:, :, 0] < 220).any():
+                                img_pil_t = Image.fromarray(arr_t.astype('uint8'), 'RGBA').convert("RGB")
+                                st.session_state.ass_tecnico_imagem = img_pil_t
+                    except Exception:
+                        pass
+
+                    # Processa assinatura do acompanhante
+                    try:
+                        if canvas_acomp is not None and getattr(canvas_acomp, "raw", None) is not None:
+                            arr_a = canvas_acomp.image_data
+                            if arr_a is not None and (arr_a[:, :, 0] < 220).any():
+                                img_pil_a = Image.fromarray(arr_a.astype('uint8'), 'RGBA').convert("RGB")
+                                st.session_state.ass_acomp_imagem = img_pil_a
+                    except Exception:
+                        pass
+
+                    st.success("✅ Assinaturas capturadas e prontas para o PDF!")
+                    st.rerun()
+
+                # Exibe confirmação visual se já foram capturadas
+                if st.session_state.ass_tecnico_imagem or st.session_state.ass_acomp_imagem:
+                    c_pv1, c_pv2 = st.columns(2)
+                    with c_pv1:
+                        if st.session_state.ass_tecnico_imagem:
+                            st.caption("Assinatura do Técnico Confirmada:")
+                            st.image(st.session_state.ass_tecnico_imagem, width=160)
+                    with c_pv2:
+                        if st.session_state.ass_acomp_imagem:
+                            st.caption("Assinatura do Acompanhante Confirmada:")
+                            st.image(st.session_state.ass_acomp_imagem, width=160)
 
             with tab_facial:
                 st.markdown("**Registro Fotográfico Facial (Comprovação in loco da entrega do Laudo):**")
