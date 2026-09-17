@@ -1,8 +1,8 @@
-streamlit
+nicegui>=1.4.0
 reportlab
 pillow
 pandas
 matplotlib
-streamlit-js-eval
 google-genai
-streamlit-drawable-canvas
+groq
+supabase
