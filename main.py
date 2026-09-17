@@ -508,7 +508,7 @@ def gerar_pdf_pericial_completo(dados, evidencias, logo_cons=None, ass_acomp_pil
     return buf.getvalue()
 
 # ---------------------------------------------------------
-# INTERFACE NICEGUI (Completamente Unificada & Storage Secret)
+# INTERFACE NICEGUI (Completamente Reestruturada e Estável)
 # ---------------------------------------------------------
 @ui.page('/')
 def index():
@@ -520,7 +520,7 @@ def index():
         <script src="[https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js](https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js)"></script>
     """)
 
-    # JavaScript para SignaturePad e Câmera Direta
+    # JavaScript para SignaturePad com dimensionamento e clique garantidos
     ui.add_body_html("""
         <script>
             var sigPad = null;
@@ -528,9 +528,11 @@ def index():
                 var canvas = document.getElementById('signature-pad');
                 if (!canvas) return;
                 
+                // Força dimensões visíveis reais no DOM
+                canvas.width = canvas.parentElement.clientWidth || 320;
+                canvas.height = 160;
+
                 var ratio = Math.max(window.devicePixelRatio || 1, 1);
-                canvas.width = canvas.offsetWidth * ratio;
-                canvas.height = canvas.offsetHeight * ratio;
                 var ctx = canvas.getContext("2d");
                 ctx.scale(ratio, ratio);
 
@@ -703,14 +705,16 @@ def index():
                             ui.label("Nenhum laudo emitido ainda.").classes('text-gray-500 text-sm')
 
             # =====================================================
-            # VISÃO VISTORIA DE CAMPO (Com Abas Nativas Estáveis)
+            # VISÃO VISTORIA DE CAMPO (Abas Estáveis sem Perda de Estado)
             # =====================================================
             else:
-                with ui.tabs().classes('w-full') as tabs_v:
+                tabs_v = ui.tabs().classes('w-full')
+                with tabs_v:
                     v1 = ui.tab('1️⃣ Empresa')
                     v2 = ui.tab('2️⃣ Apontamentos')
                     v3 = ui.tab('3️⃣ Fechamento & Laudo')
 
+                # Mantém a aba ativa sincronizada com o dicionário de sessão
                 tabs_v.value = sessao['aba_ativa']
                 tabs_v.on_value_change(lambda e: sessao.update({'aba_ativa': e.value}))
 
@@ -756,7 +760,7 @@ def index():
                             sessao['reg_inspetor'] = txt_reg.value
                             sessao['faixa'] = sel_faixa.value
                             sessao['wpp'] = txt_wpp.value
-                            sessao['aba_ativa'] = 'v2'
+                            sessao['aba_ativa'] = '2️⃣ Apontamentos'
                             renderizar_sistema()
 
                         ui.button("Avançar para Apontamentos ➡️", on_click=avancar_etapa2).classes('w-full bg-blue-600 text-white font-bold h-12 mt-4')
@@ -857,7 +861,7 @@ def index():
                                 'foto_pil': sessao['foto_temporaria']
                             })
                             sessao['foto_temporaria'] = None
-                            sessao['aba_ativa'] = 'v2'
+                            sessao['aba_ativa'] = '2️⃣ Apontamentos'
                             ui.notify(f"✅ Apontamento salvo ({len(sessao['evidencias'])} itens)!", type='positive')
                             renderizar_sistema()
 
@@ -876,13 +880,13 @@ def index():
                                         ui.button(icon='delete', on_click=deletar_item).props('flat dense color=negative')
 
                         def ir_etapa3():
-                            sessao['aba_ativa'] = 'v3'
+                            sessao['aba_ativa'] = '3️⃣ Fechamento & Laudo'
                             renderizar_sistema()
                             ui.run_javascript("setTimeout(initSignaturePad, 400);")
 
                         ui.button("Concluir Campo e Ir para Laudo ➡️", on_click=ir_etapa3).classes('w-full bg-blue-600 text-white font-bold h-12 mt-4')
 
-                    # ETAPA 3: Assinatura Tátil & Emissão de Laudo
+                    # ETAPA 3: Assinatura Tátil Clicável & Emissão de Laudo
                     with ui.tab_panel(v3):
                         ui.label("3️⃣ Fechamento do Laudo & Assinatura").classes('text-lg font-bold mb-2')
                         txt_ac_nome = ui.input("Acompanhante da Empresa:", value=sessao['acomp_nome']).classes('w-full')
@@ -890,11 +894,12 @@ def index():
 
                         ui.label("✍️ Assinatura do Acompanhante da Empresa (com o dedo ou mouse):").classes('font-bold text-sm mt-3')
                         
+                        # Quadro de assinatura HTML estruturado e com touch-action otimizado para clique garantido
                         ui.html("""
-                            <div style="border: 2px solid #94A3B8; border-radius: 10px; background: #FFFFFF; text-align: center; width: 100%;">
-                                <canvas id="signature-pad" style="width: 100%; height: 160px; touch-action: none; cursor: crosshair; display: block;"></canvas>
-                                <div style="padding: 6px; border-top: 1px solid #E2E8F0; background: #F8FAFC; border-radius: 0 0 10px 10px;">
-                                    <button type="button" onclick="limparAssinatura()" style="background:#EF4444; color:#FFF; border:none; padding:4px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">🗑️ Limpar Assinatura</button>
+                            <div style="border: 2px solid #94A3B8; border-radius: 10px; background: #FFFFFF; text-align: center; width: 100%; padding: 4px;">
+                                <canvas id="signature-pad" style="width: 100%; height: 160px; touch-action: none; cursor: crosshair; display: block; background: #FFFFFF;"></canvas>
+                                <div style="padding: 6px; border-top: 1px solid #E2E8F0; background: #F8FAFC; border-radius: 0 0 8px 8px;">
+                                    <button type="button" onclick="limparAssinatura()" style="background:#EF4444; color:#FFF; border:none; padding:6px 16px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">🗑️ Limpar Assinatura</button>
                                 </div>
                             </div>
                         """)
