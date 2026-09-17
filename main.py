@@ -703,7 +703,7 @@ def index():
                             ui.label("Nenhum laudo emitido ainda.").classes('text-gray-500 text-sm')
 
             # =====================================================
-            # VISÃO VISTORIA DE CAMPO
+            # VISÃO VISTORIA DE CAMPO (Com Abas Nativas Estáveis)
             # =====================================================
             else:
                 with ui.tabs().classes('w-full') as tabs_v:
@@ -878,7 +878,7 @@ def index():
                         def ir_etapa3():
                             sessao['aba_ativa'] = 'v3'
                             renderizar_sistema()
-                            ui.run(title="VistorIA SST", port=int(os.environ.get("PORT", 8080)), host='0.0.0.0', reload=False, storage_secret="sua_chave_secreta_super_segura_vst"))
+                            ui.run_javascript("setTimeout(initSignaturePad, 400);")
 
                         ui.button("Concluir Campo e Ir para Laudo ➡️", on_click=ir_etapa3).classes('w-full bg-blue-600 text-white font-bold h-12 mt-4')
 
@@ -940,4 +940,4 @@ def index():
     else:
         renderizar_sistema()
 
-ui.run(title="VistorIA SST", port=8080, reload=False, storage_secret="sua_chave_secreta_super_segura_vst")
+ui.run(title="VistorIA SST", port=int(os.environ.get("PORT", 8080)), host='0.0.0.0', reload=False, storage_secret="sua_chave_secreta_super_segura_vst")
